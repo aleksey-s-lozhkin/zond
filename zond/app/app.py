@@ -1,7 +1,10 @@
 import flet as ft
 
+from pathlib import Path
+
 from zond.app.state import ZondState
 from zond.app.navigator import ZondNavigator
+from zond.services.json_storage import JsonStorage
 from zond.ui.colors import AppColors
 from zond.ui.theme import build_theme
 from zond.ui.screens.upload_screen import UploadScreen
@@ -110,34 +113,9 @@ class ZondApp:
             len(template.fields)
         )
 
-        self.navigator.show(CheckScreen(self.state, self.navigator))
+        JsonStorage.save(
+            self.state.inspection,
+            Path("reports/test.json"),
+        )
 
-    # def on_file_selected(self, e):
-    #
-    #     if not e.files:
-    #         return
-    #
-    #     file = e.files[0]
-    #
-    #     template = self.template_loader.load(file.path)
-    #
-    #     self.state.template = template
-    #
-    #     print(
-    #         "Загружено полей:",
-    #         len(template.fields)
-    #     )
-    #
-    #     self.navigator.show(CheckScreen(self.state))
-    #
-    # def on_file_uploaded(self, e):
-    #
-    #     template = self.template_loader.load(file.path)
-    #
-    #     self.state.template = template
-    #
-    #     self.navigator.show(
-    #         CheckScreen(
-    #             self.state
-    #         )
-    #     )
+        self.navigator.show(CheckScreen(self.state, self.navigator))

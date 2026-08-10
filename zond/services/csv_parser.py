@@ -1,5 +1,6 @@
 import csv
-import os
+
+from pathlib import Path
 
 from zond.models.field import Field, FieldType
 
@@ -26,10 +27,14 @@ class CSVParser:
 
     def parse_template(self, file_path):
         """ Парсит шаблон CSV с поддержкой групп """
+
         try:
-            if not os.path.exists(file_path):
-                print(f"❌ Файл не найден: {file_path}")
-                return None
+            path = Path(file_path)
+
+            if not path.exists():
+                raise FileNotFoundError(
+                    f"Файл не найден: {path}"
+                )
 
             encoding = self.detect_encoding(file_path)
             print(f"🔍 Определена кодировка: {encoding}")
@@ -42,6 +47,20 @@ class CSVParser:
                 print(f"🔍 Определен разделитель: '{delimiter}'")
 
                 reader = csv.DictReader(f, delimiter=delimiter)
+
+                required_columns = {
+                    "name",
+                    "label",
+                    "type",
+                }
+
+                missing = required_columns - set(reader.fieldnames or [])
+
+                if missing:
+                    raise ValueError(
+                        f"Отсутствуют обязательные колонки: {', '.join(sorted(missing))}"
+                    )
+
                 fields = []
 
                 if not reader.fieldnames:
@@ -51,14 +70,10 @@ class CSVParser:
                 print(f"📋 Найденные колонки: {reader.fieldnames}")
 
                 for row in reader:
-                    field_name = self._get_field_value(row, ['Поле', 'Field', 'Название', 'Name'])
-                    if not field_name:
-                        continue
 
-                    field_type = self._get_field_value(
-                        row,
-                        ['Тип', 'Type'],
-                        'text'
+                    field_type = row.get(
+                        "type",
+                        "text",
                     ).strip().lower()
 
                     try:
@@ -67,53 +82,44 @@ class CSVParser:
                         field_type = FieldType.TEXT
 
                     field = Field(
-                        name=field_name.strip(),
+                        order=int(row.get("order", 0)),
+                        name=row["name"].strip(),
+                        label=row["label"].strip(),
+                        type=field_type,
+                        group=row.get(
+                            "group",
+                            "Общие сведения",
+                        ).strip(),
 
-                        label=self._get_field_value(
-                            row,
-                            ['Название', 'Label', 'Поле', 'Field'],
-                            field_name
+                        required=(
+                                row.get(
+                                    "required",
+                                    "false",
+                                ).strip().lower()
+                                == "true"
                         ),
 
-                        type=field_type,
-
-                        required=self._get_field_value(
-                            row,
-                            ['Обязательное', 'Required'],
-                            'false'
-                        ).strip().lower() == 'true',
-
                         options=self._parse_options(
-                            self._get_field_value(
-                                row,
-                                ['Варианты', 'Options'],
-                                ''
+                            row.get(
+                                "options",
+                                ""
                             )
                         ),
 
-                        placeholder=self._get_field_value(
-                            row,
-                            ['Подсказка', 'Hint'],
-                            ''
-                        ),
+                        placeholder=row.get(
+                            "placeholder",
+                            ""
+                        ).strip(),
 
-                        group=self._get_field_value(
-                            row,
-                            ['Группа', 'Group'],
-                            'Общие'
-                        ),
+                        description=row.get(
+                            "description",
+                            ""
+                        ).strip(),
 
-                        description=self._get_field_value(
-                            row,
-                            ['Описание', 'Description'],
-                            ''
-                        ),
-
-                        unit=self._get_field_value(
-                            row,
-                            ['Ед.измерения', 'Unit'],
-                            ''
-                        ),
+                        unit=row.get(
+                            "unit",
+                            ""
+                        ).strip(),
                     )
                     fields.append(field)
 
@@ -122,6 +128,10 @@ class CSVParser:
                     return None
 
                 print(f"✅ Загружено полей: {len(fields)}")
+
+                fields.sort(
+                    key=lambda field: field.order
+                )
                 return fields
 
         except Exception as e:
@@ -136,21 +146,21 @@ class CSVParser:
             return '\t'
         return ','
 
-    def _get_field_value(self, row, possible_names, default=''):
-        """Ищет значение поля по возможным названиям колонок"""
-        for name in possible_names:
-            if name in row:
-                return row[name].strip()
-        return default
+    def _parse_options(
+            self,
+            options_str: str,
+    ) -> tuple[str, ...]:
+        """Парсит варианты для Dropdown."""
 
-    def _parse_options(self, options_str):
-        """Парсит строку с вариантами для dropdown"""
         if not options_str:
-            return []
+            return ()
 
-        separators = ['\t', ';', ',', '|']
-        for sep in separators:
-            if sep in options_str:
-                return [opt.strip() for opt in options_str.split(sep) if opt.strip()]
+        for separator in ("\t", ";", ",", "|"):
+            if separator in options_str:
+                return tuple(
+                    option.strip()
+                    for option in options_str.split(separator)
+                    if option.strip()
+                )
 
-        return [options_str.strip()]
+        return (options_str.strip(),)

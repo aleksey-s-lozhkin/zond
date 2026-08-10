@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 from datetime import datetime
 
 from .inspection_item import InspectionItem
@@ -33,4 +33,24 @@ class Inspection:
     def to_dict(self) -> dict:
         """Преобразовать проверку в словарь."""
 
-        return asdict(self)
+        return {
+            "format_version": 1,
+            "template": self.template.name,
+            "object_name": self.object_name,
+            "inspector": self.inspector,
+            "started_at": self.started_at.isoformat(),
+            "finished_at": (
+                self.finished_at.isoformat()
+                if self.finished_at
+                else None
+            ),
+            "items": [
+                {
+                    "field": item.field.name,
+                    "value": item.value,
+                    "comment": item.comment,
+                    "is_checked": item.is_checked,
+                }
+                for item in self.items
+            ],
+        }
