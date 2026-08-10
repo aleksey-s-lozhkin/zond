@@ -14,15 +14,17 @@ class FieldType(StrEnum):
 
 @dataclass(slots=True, frozen=True)
 class Field:
-    """ Описание одного поля шаблона проверки. """
+    """Описание одного поля шаблона проверки."""
 
-    name: str
+    order: int = 0
 
-    label: str
+    name: str = ""
+
+    label: str = ""
 
     type: FieldType = FieldType.TEXT
 
-    group: str = "Общие"
+    group: str = "Общие сведения"
 
     required: bool = False
 

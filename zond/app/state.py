@@ -52,11 +52,12 @@ class ZondState:
         if not self.template:
             return []
 
-        return sorted({
-            field.group
-            for field in self.template.fields
-            if field.group
-        })
+        return list(
+            dict.fromkeys(
+                field.group
+                for field in self.template.fields
+            )
+        )
 
 
     def next_group(self) -> bool:
