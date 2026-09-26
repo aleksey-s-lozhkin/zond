@@ -268,7 +268,8 @@ class ReportGenerator:
                 ]
 
                 if has_unit:
-                    row.append(Paragraph(escape(item.field.unit or "—"), styles["cellMuted"]))
+                    # Пустая ячейка читается лучше, чем прочерк в колонке единиц.
+                    row.append(Paragraph(escape(item.field.unit), styles["cellMuted"]))
 
                 if has_comment:
                     row.append(Paragraph(escape(item.comment or "—"), styles["cellMuted"]))
