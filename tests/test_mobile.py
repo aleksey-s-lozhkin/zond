@@ -278,6 +278,42 @@ def test_mobile_shares_file_instead_of_opening(mobile_app: ZondApp, tmp_path: Pa
     assert mobile_app.url_launcher.urls == []
 
 
+def test_shared_file_carries_path_and_mime_type(
+    mobile_app: ZondApp,
+    tmp_path: Path,
+) -> None:
+    """В «Поделиться» уходит ShareFile, а не строка с путём.
+
+    На строке настоящий сервис падает с «Null check operator used on a null
+    value»: платформа ждёт объект с полем path. Ошибка воспроизвелась только
+    на устройстве, поэтому проверяется и здесь.
+    """
+
+    target = tmp_path / "protocol.pdf"
+    target.write_bytes(b"%PDF-1.4")
+
+    asyncio.run(mobile_app.open_path(target))
+
+    assert len(mobile_app.share.items) == 1
+
+    shared = mobile_app.share.items[0]
+
+    assert isinstance(shared, ft.ShareFile)
+    assert shared.path == str(target)
+    assert shared.mime_type == "application/pdf"
+    assert shared.name == "protocol.pdf"
+
+
+@pytest.mark.parametrize(
+    ("suffix", "expected"),
+    [(".pdf", "application/pdf"), (".json", "application/json"), (".csv", "text/csv")],
+)
+def test_mime_type_by_extension(suffix: str, expected: str) -> None:
+    from zond.app.app import _mime_type
+
+    assert _mime_type(Path(f"file{suffix}")) == expected
+
+
 def test_mobile_share_failure_is_reported(mobile_app: ZondApp, tmp_path: Path) -> None:
     target = tmp_path / "protocol.pdf"
     target.write_bytes(b"%PDF-1.4")
@@ -296,6 +332,18 @@ def test_desktop_opens_file_with_url_launcher(app: ZondApp, launcher, tmp_path: 
 
     assert launcher.urls
     assert app.share.files == []
+
+
+def test_json_is_shared_with_its_own_mime_type(
+    mobile_app: ZondApp,
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "inspection.json"
+    target.write_text("{}", encoding="utf-8")
+
+    asyncio.run(mobile_app.open_path(target))
+
+    assert mobile_app.share.items[0].mime_type == "application/json"
 
 
 def test_missing_file_is_reported_on_mobile(mobile_app: ZondApp, tmp_path: Path) -> None:

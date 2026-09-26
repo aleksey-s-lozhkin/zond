@@ -46,6 +46,19 @@ METADATA_ALIASES = {
 
 DEFAULT_WINDOW = (430, 900)
 
+#: Типы файлов для системного меню «Поделиться».
+MIME_TYPES = {
+    ".pdf": "application/pdf",
+    ".json": "application/json",
+    ".csv": "text/csv",
+}
+
+
+def _mime_type(path: Path) -> str:
+    """Тип содержимого по расширению файла."""
+
+    return MIME_TYPES.get(path.suffix.lower(), "application/octet-stream")
+
 
 class ZondApp:
     """Приложение «ЗОНД: ECTS»."""
@@ -466,8 +479,20 @@ class ZondApp:
         """
 
         try:
-            await self.share.share_files([str(target)])
-            logger.info("Файл предложен к отправке: %s", target)
+            # share_files принимает именно ShareFile: со строкой на стороне
+            # платформы разыменовывается пустой путь и вызов падает с
+            # «Null check operator used on a null value».
+            result = await self.share.share_files(
+                [
+                    ft.ShareFile(
+                        path=str(target),
+                        mime_type=_mime_type(target),
+                        name=target.name,
+                    )
+                ],
+                title=target.name,
+            )
+            logger.info("Файл предложен к отправке (%s): %s", result.status.value, target)
         except Exception as error:  # pragma: no cover - зависит от платформы
             logger.exception("Не удалось поделиться файлом %s", target)
             show_error(

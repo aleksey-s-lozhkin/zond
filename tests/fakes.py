@@ -128,14 +128,28 @@ class FakeStoragePaths:
 
 
 class FakeShare:
-    """Заглушка :class:`flet.Share`."""
+    """Заглушка :class:`flet.Share`.
+
+    Повторяет требование платформы: принимаются только ``ShareFile``. Со
+    строкой настоящий сервис падает с «Null check operator used on a null
+    value», поэтому заглушка падает так же — иначе ошибка не поймается
+    тестами.
+    """
 
     def __init__(self) -> None:
         self.files: list[str] = []
+        self.items: list = []
         self.fail = False
 
-    async def share_files(self, files, **_kwargs) -> None:
+    async def share_files(self, files, **_kwargs):
         if self.fail:
             raise RuntimeError("меню «Поделиться» недоступно")
 
-        self.files.extend(str(item) for item in files)
+        for item in files:
+            if not isinstance(item, ft.ShareFile):
+                raise TypeError(f"ожидается ShareFile, получено {type(item).__name__}")
+
+        self.items.extend(files)
+        self.files.extend(str(item.path) for item in files)
+
+        return ft.ShareResult(status=ft.ShareResultStatus.SUCCESS, raw="success")
