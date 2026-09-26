@@ -20,18 +20,46 @@ TEMPLATES_DIR = Path(__file__).resolve().parents[1] / "templates"
 SAMPLE_TEMPLATES = sorted(TEMPLATES_DIR.glob("*.csv"))
 
 KIP_TEMPLATE = TEMPLATES_DIR / "kip_kranovyy_uzel_mg.csv"
+ELECTRICAL_TEMPLATE = TEMPLATES_DIR / "elektroustanovki.csv"
+SECURITY_TEMPLATE = TEMPLATES_DIR / "tehnicheskie_sredstva_ohrany.csv"
 
 KIP_GROUPS = [
     "Общие сведения",
     "Документация и метрология",
     "Датчики и преобразователи",
     "Манометры",
-    "Импульсные трубопроводы",
+    "Импульсные и трубные проводки",
     "Соединительные коробки",
-    "Трубные проводки",
     "Кабельные линии",
     "Заземление и взрывозащита",
     "Функциональная проверка",
+    "Заключение",
+]
+
+ELECTRICAL_GROUPS = [
+    "Общие сведения",
+    "Документация и организация эксплуатации",
+    "Заземление и защитные меры",
+    "Кабельные линии и электропроводки",
+    "Щиты и распределительные устройства",
+    "Электродвигатели и приводы",
+    "Освещение и розеточные сети",
+    "Защита от перенапряжений и молниезащита",
+    "Взрывозащищённое электрооборудование",
+    "Безопасность работ",
+    "Заключение",
+]
+
+SECURITY_GROUPS = [
+    "Общие сведения",
+    "Документация и организация",
+    "Инженерно-техническая укреплённость",
+    "Охранная и тревожная сигнализация",
+    "Охранное телевидение",
+    "Контроль и управление доступом",
+    "Периметровые средства обнаружения",
+    "Электропитание и линии связи",
+    "Проверка работоспособности",
     "Заключение",
 ]
 
@@ -92,12 +120,37 @@ def test_kip_template_covers_requested_equipment() -> None:
 
 @pytest.mark.parametrize(
     "group",
-    ["Датчики и преобразователи", "Манометры", "Кабельные линии", "Соединительные коробки"],
+    [
+        "Датчики и преобразователи",
+        "Манометры",
+        "Кабельные линии",
+        "Соединительные коробки",
+        "Импульсные и трубные проводки",
+    ],
 )
 def test_kip_template_groups_are_filled(group: str) -> None:
     template = TemplateLoader().load(KIP_TEMPLATE)
 
     assert len(template.fields_in_group(group)) >= 10
+
+
+def test_kip_impulse_and_tubing_groups_are_merged() -> None:
+    """Импульсные трубопроводы и трубные проводки — это одно и то же,
+    поэтому они сведены в один шаг без дублирующих проверок."""
+
+    template = TemplateLoader().load(KIP_TEMPLATE)
+
+    assert "Импульсные и трубные проводки" in template.groups
+    assert "Импульсные трубопроводы" not in template.groups
+    assert "Трубные проводки" not in template.groups
+
+    merged = template.fields_in_group("Импульсные и трубные проводки")
+
+    # После объединения дубли (материал, герметичность, опоры, уклоны,
+    # дефекты) остались в одном экземпляре.
+    names = [field.name for field in merged]
+    assert len(names) == len(set(names))
+    assert len(merged) < 26
 
 
 def test_kip_template_has_manageable_required_share() -> None:
@@ -167,3 +220,121 @@ def test_kip_template_has_no_checkbox_fields() -> None:
     template = TemplateLoader().load(KIP_TEMPLATE)
 
     assert not [field for field in template.fields if field.type is FieldType.CHECKBOX]
+
+
+# --------------------------------------------------- электроустановки и ТСО
+
+
+def test_electrical_template_exists() -> None:
+    assert ELECTRICAL_TEMPLATE.is_file()
+
+
+def test_electrical_template_structure() -> None:
+    template = TemplateLoader().load(ELECTRICAL_TEMPLATE)
+
+    assert template.groups == ELECTRICAL_GROUPS
+    assert len(template.fields) >= 100
+
+
+def test_electrical_template_covers_required_areas() -> None:
+    template = TemplateLoader().load(ELECTRICAL_TEMPLATE)
+    joined = " ".join(template.groups).lower()
+
+    for expected in ("заземлен", "кабельн", "щит", "электродвигател", "освещен", "молни"):
+        assert expected in joined, f"нет группы про «{expected}»"
+
+
+def test_electrical_template_references_normative_documents() -> None:
+    template = TemplateLoader().load(ELECTRICAL_TEMPLATE)
+    joined = " ".join(field.description for field in template.fields).lower()
+
+    for document in ("пуэ", "приказ минэнерго", "приказ минтруда", "гост"):
+        assert document in joined, f"нет ссылки на {document}"
+
+
+def test_electrical_template_has_test_protocols() -> None:
+    """Проверка электрики без измерений бессмысленна: должны быть поля
+    для сопротивления изоляции, заземления и петли «фаза-нуль»."""
+
+    template = TemplateLoader().load(ELECTRICAL_TEMPLATE)
+    names = {field.name for field in template.fields}
+
+    for field_name in (
+        "insulation_value",
+        "grounding_value",
+        "loop_value",
+        "insulation_norm",
+        "grounding_norm",
+    ):
+        assert field_name in names, f"нет поля {field_name}"
+
+
+def test_security_template_exists() -> None:
+    assert SECURITY_TEMPLATE.is_file()
+
+
+def test_security_template_structure() -> None:
+    template = TemplateLoader().load(SECURITY_TEMPLATE)
+
+    assert template.groups == SECURITY_GROUPS
+    assert len(template.fields) >= 100
+
+
+def test_security_template_covers_required_areas() -> None:
+    template = TemplateLoader().load(SECURITY_TEMPLATE)
+    joined = " ".join(template.groups).lower()
+
+    for expected in ("укреплённ", "сигнализац", "телевидени", "доступ", "электропитание"):
+        assert expected in joined, f"нет группы про «{expected}»"
+
+
+def test_security_template_references_normative_documents() -> None:
+    template = TemplateLoader().load(SECURITY_TEMPLATE)
+    joined = " ".join(field.description for field in template.fields).lower()
+
+    for document in ("256-фз", "458", "рд 78.36.003-2002", "гост р"):
+        assert document in joined, f"нет ссылки на {document}"
+
+
+def test_security_template_has_law_enforcement_passport() -> None:
+    """Паспорт безопасности объекта ТЭК предусмотрен статьёй 8 ФЗ-256."""
+
+    template = TemplateLoader().load(SECURITY_TEMPLATE)
+    names = {field.name for field in template.fields}
+
+    assert "safety_passport" in names
+
+
+@pytest.mark.parametrize(
+    "path",
+    [KIP_TEMPLATE, ELECTRICAL_TEMPLATE, SECURITY_TEMPLATE],
+    ids=lambda item: item.name,
+)
+def test_working_templates_have_no_required_checkboxes(path: Path) -> None:
+    """Обязательный флажок не даёт зафиксировать несоответствие и завершить
+    проверку, поэтому оценочные поля в рабочих шаблонах — списки."""
+
+    template = TemplateLoader().load(path)
+
+    for field in template.required_fields:
+        assert field.type is not FieldType.CHECKBOX, f"{path.name}: «{field.name}» — флажок"
+
+
+@pytest.mark.parametrize(
+    "path",
+    [KIP_TEMPLATE, ELECTRICAL_TEMPLATE, SECURITY_TEMPLATE],
+    ids=lambda item: item.name,
+)
+def test_working_templates_use_verdict_options(path: Path) -> None:
+    """Ответы должны позволять зафиксировать и соответствие, и нарушение."""
+
+    template = TemplateLoader().load(path)
+    dropdowns = [field for field in template.fields if field.type is FieldType.DROPDOWN]
+
+    with_verdict = [
+        field
+        for field in dropdowns
+        if "Не соответствует" in field.options or "Неисправно" in field.options
+    ]
+
+    assert len(with_verdict) >= len(dropdowns) * 0.5
