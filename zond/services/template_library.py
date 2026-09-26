@@ -18,6 +18,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import shutil
@@ -97,10 +98,11 @@ class TemplateLibrary:
 
             target = self.root / self.name_of(source)
 
-            try:
-                if not target.exists():
-                    shutil.copy2(source, target)
+            if target.exists():
+                continue
 
+            try:
+                shutil.copy2(source, target)
                 added.append(source.name)
             except OSError:
                 logger.exception("Не удалось скопировать пример %s", source)
@@ -129,6 +131,49 @@ class TemplateLibrary:
             )
         except OSError:
             logger.exception("Не удалось сохранить отметку о примерах")
+
+    def is_usable(self) -> bool:
+        """Пригоден ли каталог библиотеки полностью.
+
+        Проверяется не только запись. После переустановки приложения каталог
+        в общей папке остаётся от прежней установки, а у новой другой
+        идентификатор: создавать файлы она в нём ещё может, а читать и
+        перезаписывать чужие — уже нет. Список при этом оказывается пустым,
+        хотя файлы видны в файловом менеджере.
+        """
+
+        probe = self.root / ".zond-write-check"
+
+        try:
+            self.root.mkdir(parents=True, exist_ok=True)
+
+            probe.write_text("проверка", encoding="utf-8")
+            probe.write_text("проверка", encoding="utf-8")
+            probe.read_text(encoding="utf-8")
+
+            entries = list(self.root.iterdir())
+
+            # Имена могут быть видны, а чтение самих файлов — уже нет.
+            for entry in entries:
+                if entry.suffix == TEMPLATE_SUFFIX:
+                    entry.stat()
+
+            # Перезапись чужого файла — та самая операция, которая ломается
+            # после переустановки. Открытие на дозапись её проверяет, не
+            # меняя содержимое.
+            marker = self.root / MARKER_NAME
+
+            if marker.exists():
+                marker.open("a", encoding="utf-8").close()
+        except OSError:
+            logger.warning("Каталог шаблонов %s непригоден", self.root)
+            return False
+        finally:
+            # Пробный файл не должен оставаться в каталоге пользователя.
+            with contextlib.suppress(OSError):
+                probe.unlink()
+
+        return True
 
     # -------------------------------------------------------------- список
 

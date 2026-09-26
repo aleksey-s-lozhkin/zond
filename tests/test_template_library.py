@@ -360,3 +360,76 @@ def test_restoring_from_app_updates_the_list(app) -> None:
 
     assert app.restore_examples() == 1
     assert any(item.name.startswith("КИП") for item in app.library.list_entries())
+
+
+# ------------------------------------------- непригодный каталог
+
+
+def test_marker_is_not_rewritten_when_nothing_copied(
+    library: TemplateLibrary,
+    monkeypatch,
+) -> None:
+    """Отметка не переписывается при каждом запуске.
+
+    Имя попадало в список даже когда копирование не выполнялось, и отметка
+    сохранялась заново на каждом запуске — на чужом каталоге это каждый раз
+    заканчивалось ошибкой доступа.
+    """
+
+    library.ensure()
+
+    calls: list[set[str]] = []
+    monkeypatch.setattr(library, "_write_seeded", lambda names: calls.append(names))
+
+    library.ensure()
+
+    assert calls == []
+
+
+def test_folder_with_foreign_marker_is_not_usable(library: TemplateLibrary) -> None:
+    """Каталог от прежней установки непригоден: чужой файл не перезаписать."""
+
+    library.ensure()
+
+    marker = library.root / MARKER_NAME
+    marker.chmod(0o444)
+
+    try:
+        assert library.is_usable() is False
+    finally:
+        marker.chmod(0o644)
+
+
+def test_usable_folder_leaves_no_probe(library: TemplateLibrary) -> None:
+    """Пробный файл не остаётся в каталоге пользователя."""
+
+    library.ensure()
+    assert library.is_usable() is True
+    assert not (library.root / ".zond-write-check").exists()
+
+
+def test_prepare_falls_back_from_unusable_folder(
+    app,
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    """Непригодная общая папка не оставляет пользователя без шаблонов."""
+
+    import asyncio
+
+    documents = tmp_path / "Документы"
+    monkeypatch.setattr("zond.app.app.HOME_DOCUMENTS_DIR", documents)
+
+    # Каталог от «прежней установки»: файлы есть, но чужие.
+    shared = documents / "ЗОНД" / "Шаблоны"
+    shared.mkdir(parents=True)
+    (shared / MARKER_NAME).write_text('{"seeded": []}', encoding="utf-8")
+    (shared / MARKER_NAME).chmod(0o444)
+
+    asyncio.run(app.prepare())
+
+    assert app.library.root == app.storage.root / "templates"
+    assert app.library_warning
+    assert app.library.list_entries(), "шаблоны должны быть доступны из папки приложения"
+
+    (shared / MARKER_NAME).chmod(0o644)

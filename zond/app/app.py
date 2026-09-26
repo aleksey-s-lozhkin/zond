@@ -129,6 +129,9 @@ class ZondApp:
         #: предоставляет общедоступную папку.
         self.export_dir: Path | None = None
 
+        #: Предупреждение о библиотеке шаблонов, если общая папка недоступна.
+        self.library_warning = ""
+
         #: Библиотека шаблонов. До первого prepare живёт в каталоге по
         #: умолчанию, затем переносится в общую папку, если она доступна.
         self.library = TemplateLibrary(
@@ -261,16 +264,59 @@ class ZondApp:
         return None
 
     def _prepare_library(self, storage: JsonStorage) -> None:
-        """Собрать библиотеку шаблонов и разложить в неё примеры."""
+        """Собрать библиотеку шаблонов и разложить в неё примеры.
 
-        root = self._shared_dir(TEMPLATES_SUBDIR) or (storage.root / "templates")
+        Общая папка используется, только если она полностью пригодна. После
+        переустановки приложения там остаётся каталог от прежней установки с
+        другим идентификатором: создавать файлы в нём ещё можно, а читать и
+        перезаписывать чужие — уже нет. Тогда библиотека уходит в каталог
+        приложения, а причина показывается пользователю.
+        """
 
-        self.library = TemplateLibrary(
-            root,
-            examples_dir=samples_dir(),
-            name_of=example_name,
-        )
+        fallback = storage.root / "templates"
+        shared = self._shared_dir(TEMPLATES_SUBDIR)
+
+        if shared is not None:
+            candidate = TemplateLibrary(
+                shared,
+                examples_dir=samples_dir(),
+                name_of=example_name,
+            )
+
+            if candidate.is_usable():
+                self.library = candidate
+            else:
+                logger.warning(
+                    "Каталог %s недоступен, библиотека перенесена в %s",
+                    shared,
+                    fallback,
+                )
+                self.library_warning = (
+                    "Папка «Документы/ЗОНД/Шаблоны» осталась от прежней "
+                    "установки и недоступна. Шаблоны сохраняются в папке "
+                    "приложения."
+                )
+                self.library = TemplateLibrary(
+                    fallback,
+                    examples_dir=samples_dir(),
+                    name_of=example_name,
+                )
+        else:
+            self.library = TemplateLibrary(
+                fallback,
+                examples_dir=samples_dir(),
+                name_of=example_name,
+            )
+
         self.library.ensure()
+
+    def library_hint(self) -> str:
+        """Короткая подпись, где лежат шаблоны."""
+
+        if self.library.root == self.storage.root / "templates":
+            return "папка приложения"
+
+        return f"Документы/{EXPORT_DIR_NAME}/{TEMPLATES_SUBDIR}"
 
     def export_hint(self) -> str:
         """Короткая подпись, куда попадают готовые протоколы."""

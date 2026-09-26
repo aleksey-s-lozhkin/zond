@@ -60,7 +60,13 @@ class TemplatesScreen(AppScreen):
 
         entries = self.app.library.list_entries()
 
-        rows: list[ft.Control] = [self._add_card()]
+        rows: list[ft.Control] = []
+
+        if self.app.library_warning:
+            rows.append(self._warning(self.app.library_warning))
+            rows.append(ft.Container(height=Space.XS))
+
+        rows.append(self._add_card())
 
         if entries:
             rows.append(ft.Container(height=Space.XS))
@@ -102,7 +108,34 @@ class TemplatesScreen(AppScreen):
 
         word = "шаблон" if len(entries) == 1 else "шаблонов"
 
-        return f"{len(entries)} {word} · папка приложения"
+        return f"{len(entries)} {word} · {self.app.library_hint()}"
+
+    def _warning(self, text: str) -> ft.Control:
+        """Предупреждение о недоступной общей папке."""
+
+        return ft.Container(
+            padding=ft.Padding(
+                left=Space.MD,
+                top=Space.SM,
+                right=Space.MD,
+                bottom=Space.SM,
+            ),
+            bgcolor=AppColors.WARNING_SOFT,
+            border_radius=Radius.MD,
+            content=ft.Row(
+                spacing=Space.SM,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                controls=[
+                    ft.Icon(AppIcons.WARNING, size=20, color=AppColors.WARNING),
+                    ft.Text(
+                        text,
+                        size=FontSize.CAPTION,
+                        color=AppColors.TEXT,
+                        expand=True,
+                    ),
+                ],
+            ),
+        )
 
     def _add_card(self) -> ft.Control:
         return ft.Container(
