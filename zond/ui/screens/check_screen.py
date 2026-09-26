@@ -8,6 +8,7 @@ from zond.ui.colors import AppColors
 from zond.ui.components.buttons import PrimaryButton, SecondaryButton
 from zond.ui.components.cards import EmptyState, InfoRow, SectionCard
 from zond.ui.components.headers import ScreenHeader
+from zond.ui.components.layout import ActionBar, ScreenBody
 from zond.ui.design import FontSize, Space
 from zond.ui.icons import AppIcons
 from zond.ui.screens.base_screen import AppScreen
@@ -26,23 +27,25 @@ class CheckScreen(AppScreen):
                 icon=AppIcons.WARNING,
             )
 
+        inspection = self.app.state.inspection
+
         self.object_input = ft.TextField(
             label="Объект (в протоколе)",
-            hint_text="Например: Насос Н-12, цех №3",
-            value=self.app.state.inspection.object_name if self.app.state.inspection else "",
+            hint_text="Наименование объекта или узла проверки",
+            value=inspection.object_name if inspection else "",
             border_radius=12,
             filled=True,
-            fill_color=AppColors.SURFACE_ALT,
+            fill_color=AppColors.SURFACE,
             dense=True,
         )
 
-        self.inspector_input = ft.TextField(
-            label="Инспектор (в протоколе)",
-            hint_text="ФИО проверяющего",
-            value=self.app.state.inspection.inspector if self.app.state.inspection else "",
+        self.executor_input = ft.TextField(
+            label="Исполнитель (в протоколе)",
+            hint_text="ФИО и должность: приборист, слесарь КИПиА, инженер",
+            value=inspection.executor if inspection else "",
             border_radius=12,
             filled=True,
-            fill_color=AppColors.SURFACE_ALT,
+            fill_color=AppColors.SURFACE,
             dense=True,
         )
 
@@ -54,7 +57,7 @@ class CheckScreen(AppScreen):
                 InfoRow(
                     "Обязательных",
                     str(len(template.required_fields)),
-                    value_color=AppColors.ERROR if template.required_fields else AppColors.TEXT,
+                    value_color=AppColors.PRIMARY if template.required_fields else AppColors.TEXT,
                 ),
                 title="Шаблон проверки",
                 icon=AppIcons.LIST,
@@ -89,7 +92,7 @@ class CheckScreen(AppScreen):
         cards.append(
             SectionCard(
                 self.object_input,
-                self.inspector_input,
+                self.executor_input,
                 title="Сведения о проверке",
                 subtitle="Необязательно: попадут в протокол и название проверки.",
                 icon=AppIcons.APP,
@@ -116,35 +119,19 @@ class CheckScreen(AppScreen):
                     description=template.name,
                     on_back=self._go_back,
                 ),
-                ft.Column(
-                    expand=True,
-                    scroll=ft.ScrollMode.AUTO,
-                    spacing=Space.MD,
-                    controls=cards,
-                ),
-                ft.Container(
-                    padding=ft.Padding(
-                        left=Space.LG,
-                        right=Space.LG,
-                        top=Space.MD,
-                        bottom=Space.LG,
+                ScreenBody(*cards, top=Space.XS),
+                ActionBar(
+                    SecondaryButton(
+                        "Назад",
+                        icon=AppIcons.BACK,
+                        on_click=self._go_back,
+                        expand=True,
                     ),
-                    content=ft.Row(
-                        spacing=Space.MD,
-                        controls=[
-                            SecondaryButton(
-                                "Назад",
-                                icon=AppIcons.BACK,
-                                on_click=self._go_back,
-                                expand=True,
-                            ),
-                            PrimaryButton(
-                                "Начать проверку",
-                                icon=AppIcons.PLAY,
-                                on_click=self._start,
-                                expand=True,
-                            ),
-                        ],
+                    PrimaryButton(
+                        "Начать проверку",
+                        icon=AppIcons.PLAY,
+                        on_click=self._start,
+                        expand=True,
                     ),
                 ),
             ],
@@ -158,5 +145,5 @@ class CheckScreen(AppScreen):
     def _start(self, event) -> None:
         self.app.start_inspection(
             object_name=(self.object_input.value or "").strip(),
-            inspector=(self.inspector_input.value or "").strip(),
+            executor=(self.executor_input.value or "").strip(),
         )

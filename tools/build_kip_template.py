@@ -181,7 +181,7 @@ FIELDS: list[tuple] = [
         "",
     ),
     (
-        "inspector",
+        "executor",
         "Проверку выполнил (ФИО, должность)",
         "text",
         0,

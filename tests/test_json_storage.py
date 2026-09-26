@@ -43,7 +43,7 @@ def test_saved_file_is_valid_utf8_json(store: JsonStorage, inspection) -> None:
     payload = json.loads(path.read_text(encoding="utf-8"))
 
     assert payload["object_name"] == "Насос Н-12"
-    assert payload["format_version"] == 2
+    assert payload["format_version"] == 3
 
 
 def test_cyrillic_is_not_escaped(store: JsonStorage, inspection) -> None:
@@ -172,14 +172,14 @@ def test_list_stored_returns_drafts_first(store: JsonStorage, sample_template: P
 
 def test_list_stored_metadata(store: JsonStorage, inspection) -> None:
     inspection.set_value("object_number", "INV-1")
-    inspection.set_value("inspector", "Петров")
+    inspection.set_value("executor", "Петров")
     inspection.mark_finished()
     store.finalize(inspection)
 
     entry = store.list_stored()[0]
 
     assert entry.template_name == "sample"
-    assert entry.inspector == "Иванов И.И."
+    assert entry.executor == "Иванов И.И."
     assert entry.total == 12
     assert entry.answered == 2
     assert entry.status == "завершена"

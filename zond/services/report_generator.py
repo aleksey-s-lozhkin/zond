@@ -83,7 +83,7 @@ class ReportGenerator:
             topMargin=16 * mm,
             bottomMargin=16 * mm,
             title=f"Протокол проверки — {inspection.title}",
-            author=inspection.inspector or "ЗОНД: ECTS",
+            author=inspection.executor or "ЗОНД: ECTS",
             subject=inspection.template.name,
             creator="ЗОНД: ECTS",
         )
@@ -189,7 +189,7 @@ class ReportGenerator:
     def _summary(inspection: Inspection, styles: dict) -> list:
         rows = [
             ("Объект", inspection.object_name or "—"),
-            ("Инспектор", inspection.inspector or "—"),
+            ("Исполнитель", inspection.executor or "—"),
             ("Начало проверки", format_datetime(inspection.started_at)),
             ("Завершение", format_datetime(inspection.finished_at)),
             ("Заполнено полей", f"{inspection.answered_count} из {inspection.total_items}"),
@@ -306,12 +306,12 @@ class ReportGenerator:
     @staticmethod
     def _signature(inspection: Inspection, styles: dict) -> list:
         line = "_" * 40
-        inspector = escape(inspection.inspector) if inspection.inspector else "&nbsp;"
+        executor = escape(inspection.executor) if inspection.executor else "&nbsp;"
 
         return [
             Spacer(1, 8),
             Paragraph(
-                f"Инспектор: {inspector}<br/><br/>{line}<br/>"
+                f"Проверку выполнил: {executor}<br/><br/>{line}<br/>"
                 '<font size="8" color="#6B7280">подпись / расшифровка</font>',
                 styles["body"],
             ),

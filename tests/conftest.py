@@ -12,7 +12,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:  # pragma: no cover - зависит от запуска
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from tests.fakes import FakeFilePickerFile, FakePage  # noqa: E402
+from tests.fakes import FakeFilePickerFile, FakePage, FakeUrlLauncher  # noqa: E402
 from zond.app.app import ZondApp  # noqa: E402
 from zond.services.json_storage import JsonStorage  # noqa: E402
 
@@ -32,8 +32,19 @@ def storage(tmp_path: Path) -> JsonStorage:
 @pytest.fixture
 def app(page: FakePage, storage: JsonStorage) -> ZondApp:
     application = ZondApp(page, storage=storage)
+
+    # Настоящий UrlLauncher требует живого сеанса Flet.
+    application.url_launcher = FakeUrlLauncher()
     application.start()
+
     return application
+
+
+@pytest.fixture
+def launcher(app: ZondApp) -> FakeUrlLauncher:
+    """Заглушка запуска файлов, установленная в приложении."""
+
+    return app.url_launcher
 
 
 @pytest.fixture

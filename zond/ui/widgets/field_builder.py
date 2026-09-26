@@ -47,7 +47,11 @@ class FieldControl(ft.Column):
         on_change: Callable[[FieldControl], None] | None = None,
         page: ft.Page | None = None,
     ) -> None:
-        super().__init__(spacing=Space.XS, tight=True)
+        super().__init__(
+            spacing=Space.XS,
+            tight=True,
+            horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
+        )
 
         self.field = field
         self._on_change = on_change
@@ -60,7 +64,7 @@ class FieldControl(ft.Column):
         if field.type is not FieldType.CHECKBOX:
             controls.append(self._build_label())
 
-        controls.append(self.input)
+        controls.append(self._inset(self.input))
 
         if field.description:
             controls.append(
@@ -76,37 +80,104 @@ class FieldControl(ft.Column):
     # ------------------------------------------------------------- разметка
 
     def _build_label(self) -> ft.Control:
-        label: list[ft.Control] = [
-            ft.Text(
+        """Подпись поля.
+
+        Собирается одним :class:`flet.Text` из фрагментов: строка из
+        отдельных контролов в ``Row`` не переносится и обрезается на узком
+        окне, а ``Text`` переносит текст по доступной ширине.
+        """
+
+        spans = [
+            ft.TextSpan(
                 self.field.title,
-                size=FontSize.BODY,
-                weight=ft.FontWeight.W_600,
-                color=AppColors.TEXT,
+                style=ft.TextStyle(
+                    size=FontSize.BODY,
+                    weight=ft.FontWeight.W_600,
+                    color=AppColors.TEXT,
+                ),
             )
         ]
 
         if self.field.required:
-            label.append(
-                ft.Text("*", size=FontSize.BODY, color=AppColors.ERROR, tooltip="Обязательное поле")
-            )
-
-        if self.field.unit:
-            label.append(
-                ft.Text(
-                    f"({self.field.unit})",
-                    size=FontSize.CAPTION,
-                    color=AppColors.TEXT_SECONDARY,
+            spans.append(
+                ft.TextSpan(
+                    " *",
+                    style=ft.TextStyle(
+                        size=FontSize.SUBTITLE,
+                        weight=ft.FontWeight.BOLD,
+                        color=AppColors.PRIMARY,
+                    ),
                 )
             )
 
-        return ft.Row(controls=label, spacing=Space.XS, tight=True)
+        if self.field.unit:
+            spans.append(
+                ft.TextSpan(
+                    f"  ({self.field.unit})",
+                    style=ft.TextStyle(
+                        size=FontSize.CAPTION,
+                        color=AppColors.TEXT_SECONDARY,
+                    ),
+                )
+            )
+
+        return ft.Text(
+            spans=spans,
+            tooltip="Обязательное поле" if self.field.required else None,
+        )
+
+    def _inset(self, control: ft.Control) -> ft.Control:
+        """Выделить обязательное поле.
+
+        У полей ввода заливка и рамка задаются при создании; у флажка
+        собственного фона нет, поэтому обязательный флажок оборачивается в
+        тонированный контейнер.
+        """
+
+        if not self.field.required or self.field.type is not FieldType.CHECKBOX:
+            return control
+
+        return ft.Container(
+            padding=ft.Padding(
+                left=Space.SM,
+                top=Space.XS,
+                right=Space.SM,
+                bottom=Space.XS,
+            ),
+            bgcolor=AppColors.PRIMARY_SOFT,
+            border=ft.Border.all(1, AppColors.PRIMARY_BORDER),
+            border_radius=Radius.SM,
+            content=control,
+        )
+
+    def _input_style(self) -> dict:
+        """Заливка и рамка поля.
+
+        Обязательные поля получают мягкую заливку и синюю рамку: звёздочка в
+        подписи на маленьком экране почти не заметна, а цвет видно сразу.
+        Цвет ошибки остаётся красным, поэтому состояния не путаются.
+        """
+
+        if self.field.required:
+            return {
+                "filled": True,
+                "fill_color": AppColors.PRIMARY_SOFT,
+                "border_color": AppColors.PRIMARY_BORDER,
+                "focused_border_color": AppColors.PRIMARY,
+            }
+
+        return {
+            "filled": True,
+            "fill_color": AppColors.SURFACE,
+            "border_color": AppColors.BORDER,
+            "focused_border_color": AppColors.PRIMARY,
+        }
 
     def _create_input(self, value: object | None) -> ft.Control:
         field = self.field
         common = {
+            **self._input_style(),
             "border_radius": Radius.SM,
-            "filled": True,
-            "fill_color": AppColors.SURFACE_ALT,
             "dense": True,
         }
 

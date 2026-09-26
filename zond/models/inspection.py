@@ -11,7 +11,7 @@ from zond.models.template import Template
 from zond.services.errors import StorageError
 
 #: Текущая версия формата файла проверки.
-FORMAT_VERSION = 2
+FORMAT_VERSION = 3
 
 #: Группа, в которую попадают поля при миграции файлов версии 1.
 LEGACY_GROUP = "Без группы"
@@ -64,7 +64,7 @@ class Inspection:
     template: Template
     inspection_id: str = field(default_factory=lambda: uuid4().hex)
     object_name: str = ""
-    inspector: str = ""
+    executor: str = ""
     started_at: datetime = field(default_factory=utcnow)
     finished_at: datetime | None = None
     items: list[InspectionItem] = field(default_factory=list)
@@ -166,7 +166,7 @@ class Inspection:
             "format_version": FORMAT_VERSION,
             "inspection_id": self.inspection_id,
             "object_name": self.object_name,
-            "inspector": self.inspector,
+            "executor": self.executor,
             "started_at": self.started_at.isoformat(),
             "finished_at": self.finished_at.isoformat() if self.finished_at else None,
             "template": self.template.to_dict(),
@@ -216,19 +216,37 @@ class Inspection:
             template=template,
             inspection_id=str(data.get("inspection_id") or uuid4().hex),
             object_name=str(data.get("object_name") or ""),
-            inspector=str(data.get("inspector") or ""),
+            executor=_read_executor(data),
             started_at=parse_datetime(data.get("started_at")) or utcnow(),
             finished_at=parse_datetime(data.get("finished_at")),
             items=items,
         )
 
-        if version < FORMAT_VERSION:
+        # Формат 2 отличается от 3 только именем ключа исполнителя — перенос
+        # без потерь, поэтому предупреждаем лишь о миграции с формата 1, где
+        # теряются подписи полей и группировка.
+        if version < 2:
             inspection.template.warnings.append(
                 f"Файл формата {version} загружен с миграцией до {FORMAT_VERSION}: "
                 "названия полей и группировка восстановлены приблизительно."
             )
 
         return inspection
+
+
+def _read_executor(data: dict) -> str:
+    """Исполнитель проверки.
+
+    В форматах 1 и 2 ключ назывался ``inspector``; поддерживаем оба имени,
+    чтобы ранее сохранённые проверки открывались без правок.
+    """
+
+    value = data.get("executor")
+
+    if value is None:
+        value = data.get("inspector")
+
+    return str(value or "")
 
 
 def _template_from_payload(data: dict, version: int) -> Template:

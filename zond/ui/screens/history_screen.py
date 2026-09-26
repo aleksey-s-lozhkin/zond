@@ -10,6 +10,7 @@ from zond.ui.components.buttons import GhostButton, PrimaryButton
 from zond.ui.components.cards import Badge, EmptyState, SectionCard
 from zond.ui.components.dialogs import show_confirm, show_error
 from zond.ui.components.headers import ScreenHeader
+from zond.ui.components.layout import ScreenBody
 from zond.ui.design import ControlSize, FontSize, Radius, Space
 from zond.ui.icons import AppIcons
 from zond.ui.screens.base_screen import AppScreen
@@ -22,22 +23,19 @@ class HistoryScreen(AppScreen):
         entries = self.app.storage.list_stored()
 
         if not entries:
-            body: ft.Control = ft.Container(
-                expand=True,
-                alignment=ft.Alignment(0, 0),
-                content=EmptyState(
-                    "Сохранённых проверок нет",
-                    "Завершённые проверки и черновики появятся здесь.",
-                    icon=AppIcons.HISTORY,
-                ),
+            body: ft.Control = ScreenBody(
+                ft.Container(
+                    alignment=ft.Alignment(0, 0),
+                    expand=True,
+                    content=EmptyState(
+                        "Сохранённых проверок нет",
+                        "Завершённые проверки и черновики появятся здесь.",
+                        icon=AppIcons.HISTORY,
+                    ),
+                )
             )
         else:
-            body = ft.Column(
-                expand=True,
-                scroll=ft.ScrollMode.AUTO,
-                spacing=Space.MD,
-                controls=[self._entry_card(entry) for entry in entries],
-            )
+            body = ScreenBody(*[self._entry_card(entry) for entry in entries])
 
         return ft.Column(
             expand=True,
@@ -88,7 +86,7 @@ class HistoryScreen(AppScreen):
                 GhostButton(
                     "PDF",
                     icon=AppIcons.PDF,
-                    on_click=lambda event, item=entry: self._make_pdf(item),
+                    on_click=self._pdf_action(entry),
                 )
             )
 
@@ -128,7 +126,7 @@ class HistoryScreen(AppScreen):
                 border_radius=Radius.XL,
             ),
             ft.Text(
-                f"Инспектор: {entry.inspector or '—'} · шаблон: {entry.template_name}",
+                f"Исполнитель: {entry.executor or '—'} · шаблон: {entry.template_name}",
                 size=FontSize.CAPTION,
                 color=AppColors.TEXT_SECONDARY,
             ),
@@ -147,7 +145,21 @@ class HistoryScreen(AppScreen):
     def _open(self, entry: StoredInspection) -> None:
         self.app.resume_inspection(entry)
 
-    def _make_pdf(self, entry: StoredInspection) -> None:
+    def _pdf_action(self, entry: StoredInspection):
+        """Обработчик кнопки «PDF».
+
+        Flet дожидается только настоящих корутин (проверка идёт через
+        ``inspect.iscoroutinefunction``), поэтому lambda, возвращающая
+        корутину, привела бы к предупреждению «coroutine was never awaited»
+        и файл бы не открылся.
+        """
+
+        async def handler(event) -> None:
+            await self._make_pdf(entry)
+
+        return handler
+
+    async def _make_pdf(self, entry: StoredInspection) -> None:
         if entry.is_draft:
             show_error(
                 self.app.page,
@@ -160,7 +172,7 @@ class HistoryScreen(AppScreen):
         path = self.app.generate_pdf_for(entry.inspection)
 
         if path is not None:
-            self.app.open_path(path)
+            await self.app.open_path(path)
 
     def _delete(self, entry: StoredInspection) -> None:
         show_confirm(

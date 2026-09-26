@@ -51,8 +51,8 @@ class StoredInspection:
         return self.inspection.template.name
 
     @property
-    def inspector(self) -> str:
-        return self.inspection.inspector
+    def executor(self) -> str:
+        return self.inspection.executor
 
     @property
     def started_at(self) -> datetime:

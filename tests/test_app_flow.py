@@ -63,7 +63,7 @@ def test_finished_inspection_is_saved_to_disk(
     payload = json.loads(saved[0].read_text(encoding="utf-8"))
 
     assert payload["finished_at"] is not None
-    assert payload["format_version"] == 2
+    assert payload["format_version"] == 3
     assert len(payload["template"]["fields"]) == 12
     assert all(item["value"] is not None for item in payload["items"])
 
@@ -345,20 +345,66 @@ def test_pdf_report_is_generated(app: ZondApp, sample_template: Path, choose_fil
     assert path.parent == app.storage.pdf_dir
 
 
-def test_open_path_launches_url(app: ZondApp, tmp_path: Path) -> None:
+def test_open_path_launches_url(app: ZondApp, launcher, tmp_path: Path) -> None:
     target = tmp_path / "file.txt"
     target.write_text("x", encoding="utf-8")
 
-    app.open_path(target)
+    asyncio.run(app.open_path(target))
 
-    assert app.page.launched_urls
-    assert app.page.launched_urls[0].startswith("file://")
+    assert launcher.urls
+    assert launcher.urls[0].startswith("file://")
 
 
-def test_open_missing_path_shows_error(app: ZondApp, tmp_path: Path) -> None:
-    app.open_path(tmp_path / "nope.txt")
+def test_open_missing_path_shows_error(app: ZondApp, launcher, tmp_path: Path) -> None:
+    asyncio.run(app.open_path(tmp_path / "nope.txt"))
 
     assert app.page.dialogs
+    assert launcher.urls == []
+
+
+def test_open_path_reports_when_system_cannot_open(app: ZondApp, launcher, tmp_path: Path) -> None:
+    target = tmp_path / "file.txt"
+    target.write_text("x", encoding="utf-8")
+    launcher.can_launch = False
+
+    asyncio.run(app.open_path(target))
+
+    assert app.page.dialogs
+    assert launcher.urls == []
+
+
+def test_open_path_is_a_coroutine_function() -> None:
+    """Регрессия: page.launch_url устарел и стал корутиной, из-за чего PDF
+    не открывался с предупреждением «coroutine was never awaited»."""
+
+    import inspect
+
+    assert inspect.iscoroutinefunction(ZondApp.open_path)
+
+
+def test_async_event_handlers_are_real_coroutines() -> None:
+    """Flet ждёт обработчик только если это корутина.
+
+    ``lambda``, возвращающая корутину, не сработает: Flet проверяет
+    ``inspect.iscoroutinefunction``, а для lambda она даёт False.
+    """
+
+    import inspect
+
+    from zond.ui.screens.finish_screen import FinishScreen
+    from zond.ui.screens.history_screen import HistoryScreen
+    from zond.ui.screens.upload_screen import UploadScreen
+
+    for method in (
+        ZondApp.pick_template,
+        ZondApp.pick_inspection,
+        ZondApp.open_path,
+        FinishScreen._open_pdf,
+        HistoryScreen._make_pdf,
+        UploadScreen._pick_template,
+        UploadScreen._pick_inspection,
+    ):
+        assert inspect.iscoroutinefunction(method), method.__qualname__
 
 
 # -------------------------------------------------------------- загрузка шаблона
@@ -453,7 +499,7 @@ def test_metadata_prefills_matching_template_fields(
     inspection = app.state.inspection
 
     assert inspection.get_item("object_number").value == "Насос Н-12"
-    assert inspection.get_item("inspector").value == "Петров П.П."
+    assert inspection.get_item("executor").value == "Петров П.П."
 
 
 def test_restart_clears_session(app: ZondApp, sample_template: Path, choose_file) -> None:

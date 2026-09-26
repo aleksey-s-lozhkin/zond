@@ -17,6 +17,7 @@ class AppColors:
     PRIMARY = "#2563EB"
     PRIMARY_DARK = "#1D4ED8"
     PRIMARY_SOFT = "#EFF4FF"
+    PRIMARY_BORDER = "#A8C4F0"
 
     SUCCESS = "#16A34A"
     SUCCESS_SOFT = "#ECFDF5"

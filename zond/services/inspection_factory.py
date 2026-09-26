@@ -14,12 +14,12 @@ class InspectionFactory:
     def create(
         template: Template,
         object_name: str = "",
-        inspector: str = "",
+        executor: str = "",
     ) -> Inspection:
         inspection = Inspection(
             template=template,
             object_name=object_name,
-            inspector=inspector,
+            executor=executor,
         )
 
         inspection.items = [InspectionItem(field=item) for item in template.fields]

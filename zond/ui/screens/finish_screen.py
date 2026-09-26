@@ -8,6 +8,7 @@ from zond.models.inspection import format_datetime
 from zond.ui.colors import AppColors
 from zond.ui.components.buttons import GhostButton, PrimaryButton, SecondaryButton
 from zond.ui.components.cards import EmptyState, InfoRow, SectionCard
+from zond.ui.components.layout import ScreenBody
 from zond.ui.design import FontSize, Space
 from zond.ui.icons import AppIcons
 from zond.ui.screens.base_screen import AppScreen
@@ -33,7 +34,7 @@ class FinishScreen(AppScreen):
         cards: list[ft.Control] = [
             SectionCard(
                 InfoRow("Объект", inspection.object_name or "—"),
-                InfoRow("Инспектор", inspection.inspector or "—"),
+                InfoRow("Исполнитель", inspection.executor or "—"),
                 InfoRow("Шаблон", inspection.template.name),
                 InfoRow("Начало", format_datetime(inspection.started_at)),
                 InfoRow("Завершение", format_datetime(inspection.finished_at)),
@@ -99,55 +100,41 @@ class FinishScreen(AppScreen):
                 )
             )
 
+        success_block = ft.Row(
+            spacing=Space.MD,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            controls=[
+                ft.Icon(
+                    AppIcons.SUCCESS,
+                    size=44,
+                    color=AppColors.SUCCESS,
+                ),
+                ft.Column(
+                    spacing=2,
+                    expand=True,
+                    tight=True,
+                    controls=[
+                        ft.Text(
+                            "Проверка завершена",
+                            size=FontSize.TITLE,
+                            weight=ft.FontWeight.BOLD,
+                            color=AppColors.TEXT,
+                        ),
+                        ft.Text(
+                            inspection.title,
+                            size=FontSize.BODY,
+                            color=AppColors.TEXT_SECONDARY,
+                        ),
+                    ],
+                ),
+            ],
+        )
+
         return ft.Column(
             expand=True,
             spacing=0,
             controls=[
-                ft.Column(
-                    expand=True,
-                    scroll=ft.ScrollMode.AUTO,
-                    spacing=Space.MD,
-                    controls=[
-                        ft.Container(
-                            padding=ft.Padding(
-                                left=Space.LG,
-                                right=Space.LG,
-                                top=Space.LG,
-                                bottom=Space.SM,
-                            ),
-                            content=ft.Row(
-                                spacing=Space.MD,
-                                vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                                controls=[
-                                    ft.Icon(
-                                        AppIcons.SUCCESS,
-                                        size=44,
-                                        color=AppColors.SUCCESS,
-                                    ),
-                                    ft.Column(
-                                        spacing=2,
-                                        expand=True,
-                                        tight=True,
-                                        controls=[
-                                            ft.Text(
-                                                "Проверка завершена",
-                                                size=FontSize.TITLE,
-                                                weight=ft.FontWeight.BOLD,
-                                                color=AppColors.TEXT,
-                                            ),
-                                            ft.Text(
-                                                inspection.title,
-                                                size=FontSize.BODY,
-                                                color=AppColors.TEXT_SECONDARY,
-                                            ),
-                                        ],
-                                    ),
-                                ],
-                            ),
-                        ),
-                        *cards,
-                    ],
-                ),
+                ScreenBody(success_block, *cards, top=Space.LG),
                 ft.Container(
                     padding=ft.Padding(
                         left=Space.LG,
@@ -190,13 +177,13 @@ class FinishScreen(AppScreen):
         if path is not None:
             self.refresh()
 
-    def _open_pdf(self, event) -> None:
+    async def _open_pdf(self, event) -> None:
         inspection = self.app.state.inspection
 
         if inspection is None:
             return
 
-        self.app.open_path(self.app.storage.pdf_path(inspection))
+        await self.app.open_path(self.app.storage.pdf_path(inspection))
 
     def _open_history(self, event) -> None:
         self.app.open_history()

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import flet as ft
 import pytest
 
 from zond.models.field import Field, FieldType
@@ -33,9 +34,40 @@ def test_text_field_keeps_label_and_placeholder() -> None:
 def test_required_marker_is_rendered() -> None:
     control = FieldControl(make(FieldType.TEXT, required=True))
 
-    label_row = control.controls[0]
+    label = control.controls[0]
 
-    assert any(getattr(item, "value", "") == "*" for item in label_row.controls)
+    assert isinstance(label, ft.Text)
+    assert "".join(span.text for span in label.spans).endswith(" *")
+
+
+def test_label_is_a_single_text_so_it_wraps() -> None:
+    """Подпись должна переноситься, а не обрезаться на узком окне.
+
+    Строка из отдельных контролов в Row не переносится: длинная подпись
+    уезжает за край. Один Text со spans переносится по доступной ширине.
+    """
+
+    control = FieldControl(make(FieldType.TEXT, required=True, unit="МПа"))
+    label = control.controls[0]
+
+    assert isinstance(label, ft.Text)
+    assert len(label.spans) == 3
+
+
+def test_required_field_is_highlighted_with_colour() -> None:
+    required = FieldControl(make(FieldType.TEXT, required=True))
+    optional = FieldControl(make(FieldType.TEXT))
+
+    assert required.input.fill_color != optional.input.fill_color
+    assert required.input.border_color != optional.input.border_color
+
+
+def test_required_checkbox_is_wrapped_in_tinted_container() -> None:
+    required = FieldControl(make(FieldType.CHECKBOX, required=True))
+    optional = FieldControl(make(FieldType.CHECKBOX))
+
+    assert isinstance(required.controls[0], ft.Container)
+    assert not isinstance(optional.controls[0], ft.Container)
 
 
 def test_unit_is_rendered_as_suffix() -> None:
@@ -49,8 +81,6 @@ def test_textarea_is_multiline() -> None:
 
 
 def test_number_uses_numeric_keyboard() -> None:
-    import flet as ft
-
     assert FieldControl(make(FieldType.NUMBER)).input.keyboard_type == ft.KeyboardType.NUMBER
 
 

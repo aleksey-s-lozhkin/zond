@@ -57,7 +57,7 @@ def test_progress_ratio(inspection: Inspection) -> None:
     assert inspection.progress == 0.0
 
     inspection.set_value("object_number", "A")
-    inspection.set_value("inspector", "B")
+    inspection.set_value("executor", "B")
 
     assert inspection.progress == pytest.approx(2 / inspection.total_items)
 
@@ -196,6 +196,44 @@ def test_v1_payload_is_migrated() -> None:
     assert restored.get_item("object_number").value == "INV-1"
     assert restored.started_at.tzinfo is not None
     assert any("миграцией" in warning for warning in restored.template.warnings)
+
+
+def test_payload_uses_executor_key(inspection: Inspection) -> None:
+    """Исполнителем может быть приборист или слесарь КИПиА, а не только
+    инспектор, поэтому ключ называется executor."""
+
+    payload = inspection.to_dict()
+
+    assert payload["executor"] == "Иванов И.И."
+    assert "inspector" not in payload
+
+
+def test_v2_payload_with_inspector_key_is_migrated() -> None:
+    """До формата 3 исполнитель хранился в ключе inspector."""
+
+    payload = {
+        "format_version": 2,
+        "template": Template(name="sample", fields=[Field(name="a", label="A")]).to_dict(),
+        "items": [{"field": "a", "value": "1", "is_checked": True}],
+        "inspector": "Петров П.П., приборист",
+    }
+
+    restored = Inspection.from_dict(payload)
+
+    assert restored.executor == "Петров П.П., приборист"
+    # Перенос ключа без потерь, поэтому предупреждений быть не должно.
+    assert restored.template.warnings == []
+
+
+def test_v3_payload_with_executor_key() -> None:
+    payload = {
+        "format_version": 3,
+        "template": Template(name="sample", fields=[Field(name="a", label="A")]).to_dict(),
+        "items": [],
+        "executor": "Сидоров С.С., слесарь КИПиА",
+    }
+
+    assert Inspection.from_dict(payload).executor == "Сидоров С.С., слесарь КИПиА"
 
 
 def test_v1_without_items_is_rejected() -> None:

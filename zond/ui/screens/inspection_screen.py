@@ -9,6 +9,7 @@ from zond.ui.components.buttons import PrimaryButton, SecondaryButton
 from zond.ui.components.cards import EmptyState
 from zond.ui.components.dialogs import show_error
 from zond.ui.components.headers import ScreenHeader
+from zond.ui.components.layout import ActionBar, ScreenBody
 from zond.ui.components.progress import ProgressWidget
 from zond.ui.design import FontSize, Space
 from zond.ui.icons import AppIcons
@@ -52,25 +53,6 @@ class InspectionScreen(AppScreen):
             total=state.total_fields,
         )
 
-        group_required = [field for field in state.current_fields if field.required]
-
-        hints: list[ft.Control] = []
-
-        if group_required:
-            hints.append(
-                ft.Row(
-                    spacing=Space.XS,
-                    controls=[
-                        ft.Text("*", size=FontSize.CAPTION, color=AppColors.ERROR),
-                        ft.Text(
-                            f"обязательных полей на шаге: {len(group_required)}",
-                            size=FontSize.CAPTION,
-                            color=AppColors.TEXT_SECONDARY,
-                        ),
-                    ],
-                )
-            )
-
         is_last = state.is_last_group
 
         return ft.Column(
@@ -86,36 +68,58 @@ class InspectionScreen(AppScreen):
                     on_back=self._go_back,
                 ),
                 self.progress,
-                ft.Column(
-                    expand=True,
-                    scroll=ft.ScrollMode.AUTO,
+                ScreenBody(
+                    self._legend(),
+                    *self.field_controls,
                     spacing=Space.LG,
-                    controls=[*self.field_controls, *hints],
+                    top=Space.XS,
                 ),
-                ft.Container(
-                    padding=ft.Padding(
-                        left=Space.LG,
-                        right=Space.LG,
-                        top=Space.MD,
-                        bottom=Space.LG,
+                ActionBar(
+                    SecondaryButton(
+                        "Назад",
+                        icon=AppIcons.BACK,
+                        on_click=self._go_back,
+                        expand=True,
                     ),
-                    content=ft.Row(
-                        spacing=Space.MD,
-                        controls=[
-                            SecondaryButton(
-                                "Назад",
-                                icon=AppIcons.BACK,
-                                on_click=self._go_back,
-                                expand=True,
-                            ),
-                            PrimaryButton(
-                                "Завершить" if is_last else "Далее",
-                                icon=AppIcons.SUCCESS if is_last else AppIcons.NEXT,
-                                on_click=self._go_next,
-                                expand=True,
-                            ),
-                        ],
+                    PrimaryButton(
+                        "Завершить" if is_last else "Далее",
+                        icon=AppIcons.SUCCESS if is_last else AppIcons.NEXT,
+                        on_click=self._go_next,
+                        expand=True,
                     ),
+                ),
+            ],
+        )
+
+    # --------------------------------------------------------------- разметка
+
+    def _legend(self) -> ft.Control:
+        """Пояснение к цветовой разметке обязательных полей."""
+
+        fields = self.app.state.current_fields
+        required = [field for field in fields if field.required]
+
+        if not required:
+            return ft.Text(
+                "На этом шаге обязательных полей нет",
+                size=FontSize.CAPTION,
+                color=AppColors.TEXT_SECONDARY,
+            )
+
+        return ft.Row(
+            spacing=Space.XS,
+            controls=[
+                ft.Text(
+                    "*",
+                    size=FontSize.SUBTITLE,
+                    weight=ft.FontWeight.BOLD,
+                    color=AppColors.PRIMARY,
+                ),
+                ft.Text(
+                    f"обязательные поля — {len(required)} из {len(fields)} (выделены цветом)",
+                    size=FontSize.CAPTION,
+                    color=AppColors.TEXT_SECONDARY,
+                    expand=True,
                 ),
             ],
         )

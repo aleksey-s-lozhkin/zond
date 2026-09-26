@@ -23,7 +23,7 @@ def inspection(sample_template: Path):
     result = InspectionFactory.create(template, "Насос Н-12", "Иванов И.И.")
     result.set_value("object_number", "INV-001")
     result.set_value("inspection_date", "2026-08-11")
-    result.set_value("inspector", "Иванов И.И.")
+    result.set_value("executor", "Иванов И.И.")
     result.set_value("equipment_type", "Насос")
     result.set_value("temperature", "62,5")
     result.set_value("comments", "Посторонний шум в подшипниковом узле.")
@@ -85,7 +85,7 @@ def test_missing_required_fields_are_listed(
     tmp_path: Path,
 ) -> None:
     template = TemplateLoader().load(sample_template)
-    inspection = InspectionFactory.create(template, "Объект", "Инспектор")
+    inspection = InspectionFactory.create(template, "Объект", "Исполнитель")
     inspection.mark_finished()
 
     target = generator.generate(inspection, tmp_path / "report.pdf")

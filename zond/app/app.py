@@ -28,10 +28,13 @@ from zond.ui.theme import build_theme
 logger = logging.getLogger(__name__)
 
 #: Поля шаблона, которые автоматически заполняются из сведений о проверке.
+#: Ключ — машинное имя поля в CSV, значение — атрибут проверки. Имя
+#: ``inspector`` оставлено как алиас для шаблонов, созданных до переименования.
 METADATA_ALIASES = {
     "object_number": "object_name",
     "object_name": "object_name",
-    "inspector": "inspector",
+    "executor": "executor",
+    "inspector": "executor",
 }
 
 DEFAULT_WINDOW = (430, 900)
@@ -52,6 +55,12 @@ class ZondApp:
 
         self.file_picker = ft.FilePicker()
         page.services.append(self.file_picker)
+
+        # Открытие PDF средствами системы. page.launch_url объявлен
+        # устаревшим с 0.80 и превратился в корутину, поэтому используем
+        # сервис UrlLauncher.
+        self.url_launcher = ft.UrlLauncher()
+        page.services.append(self.url_launcher)
 
         self._configure_page()
 
@@ -163,7 +172,7 @@ class ZondApp:
 
     # ----------------------------------------------------------- сценарий
 
-    def start_inspection(self, object_name: str, inspector: str) -> None:
+    def start_inspection(self, object_name: str, executor: str) -> None:
         """Создать проверку по текущему шаблону и открыть форму."""
 
         template = self.state.template
@@ -172,7 +181,7 @@ class ZondApp:
             show_error(self.page, "Шаблон не загружен", "Сначала выберите CSV-шаблон.")
             return
 
-        inspection = InspectionFactory.create(template, object_name, inspector)
+        inspection = InspectionFactory.create(template, object_name, executor)
         self._prefill_metadata(inspection)
 
         self.state.set_inspection(inspection)
@@ -246,8 +255,12 @@ class ZondApp:
             show_error(self.page, "Не удалось сформировать протокол", str(error))
             return None
 
-    def open_path(self, path: str | Path) -> None:
-        """Открыть файл средствами системы."""
+    async def open_path(self, path: str | Path) -> None:
+        """Открыть файл средствами системы.
+
+        Асинхронный, потому что сервис запуска :class:`flet.UrlLauncher`
+        работает через корутины.
+        """
 
         target = Path(path)
 
@@ -255,11 +268,27 @@ class ZondApp:
             show_error(self.page, "Файл не найден", f"Файл не найден:\n{target}")
             return
 
+        uri = target.resolve().as_uri()
+
         try:
-            self.page.launch_url(target.resolve().as_uri())
+            if not await self.url_launcher.can_launch_url(uri):
+                show_error(
+                    self.page,
+                    "Не удалось открыть файл",
+                    f"Система не может открыть этот файл автоматически.\n\n"
+                    f"Откройте его вручную:\n{target}",
+                )
+                return
+
+            await self.url_launcher.launch_url(uri)
+            logger.info("Открыт файл %s", target)
         except Exception as error:  # pragma: no cover - зависит от платформы
             logger.exception("Не удалось открыть файл %s", target)
-            show_error(self.page, "Не удалось открыть файл", f"{target}\n\n{error}")
+            show_error(
+                self.page,
+                "Не удалось открыть файл",
+                f"Откройте файл вручную:\n{target}\n\n{error}",
+            )
 
     # ---------------------------------------------------------- навигация
 

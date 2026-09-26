@@ -66,7 +66,7 @@ def test_current_fields_follow_group(template) -> None:
     assert [field.name for field in state.current_fields] == [
         "object_number",
         "inspection_date",
-        "inspector",
+        "executor",
     ]
 
     state.next_group()
@@ -149,7 +149,7 @@ def test_goto_first_incomplete_prefers_missing_required(template) -> None:
     # Заполняем обязательные первой группы, но оставляем обязательное в третьей.
     inspection.set_value("object_number", "1")
     inspection.set_value("inspection_date", "2026-01-01")
-    inspection.set_value("inspector", "Иванов")
+    inspection.set_value("executor", "Иванов")
     inspection.set_value("equipment_type", "Насос")
 
     state = ZondState()

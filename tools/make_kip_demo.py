@@ -31,7 +31,7 @@ from zond.utils.logging_setup import configure_logging  # noqa: E402
 TEMPLATE = PROJECT_ROOT / "templates" / "kip_kranovyy_uzel_mg.csv"
 
 OBJECT = "ПАО «Газпром», ООО «Газпром трансгаз Самара», ЛПУМГ №2"
-INSPECTOR = "Иванов И.И., инженер КИПиА"
+EXECUTOR = "Иванов И.И., инженер КИПиА"
 
 #: Ответы, которые отличаются от типового значения для своего типа поля.
 ANSWERS: dict[str, str] = {
@@ -46,7 +46,7 @@ ANSWERS: dict[str, str] = {
     "inspection_date": "2026-09-26",
     "inspection_time": "09:30",
     "inspection_type": "ТО-2",
-    "inspector": INSPECTOR,
+    "executor": EXECUTOR,
     "outdoor_temp": "12",
     "weather": "Ясно, ветер 3 м/с, видимость полная",
     "kip_system": "Микропроцессорная",
@@ -149,7 +149,7 @@ def main() -> None:
     store = JsonStorage(target)
 
     template = TemplateLoader().load(TEMPLATE)
-    inspection = InspectionFactory.create(template, OBJECT, INSPECTOR)
+    inspection = InspectionFactory.create(template, OBJECT, EXECUTOR)
 
     fill(inspection)
 

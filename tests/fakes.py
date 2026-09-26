@@ -37,7 +37,6 @@ class FakePage:
         self.spacing = None
 
         self.dialogs: list = []
-        self.launched_urls: list[str] = []
         self.updates = 0
 
     # ----------------------------------------------------- управление деревом
@@ -60,11 +59,6 @@ class FakePage:
         if self.dialogs:
             self.dialogs.pop()
 
-    # ---------------------------------------------------------------- ссылки
-
-    def launch_url(self, url) -> None:
-        self.launched_urls.append(str(url))
-
 
 class FakeFilePickerFile:
     """Заглушка выбранного файла."""
@@ -73,3 +67,21 @@ class FakeFilePickerFile:
         self.path = str(path)
         self.name = Path(path).name
         self.size = Path(path).stat().st_size if Path(path).exists() else 0
+
+
+class FakeUrlLauncher:
+    """Заглушка :class:`flet.UrlLauncher`.
+
+    Настоящий сервис асинхронный, поэтому заглушка повторяет его контракт:
+    методы — корутины. Если приложение забудет ``await``, тест это покажет.
+    """
+
+    def __init__(self) -> None:
+        self.urls: list[str] = []
+        self.can_launch = True
+
+    async def can_launch_url(self, url) -> bool:
+        return self.can_launch
+
+    async def launch_url(self, url, *args, **kwargs) -> None:
+        self.urls.append(str(url))
