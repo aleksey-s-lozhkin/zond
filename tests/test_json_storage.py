@@ -12,6 +12,7 @@ from zond.models.inspection import utcnow
 from zond.services.errors import StorageError
 from zond.services.inspection_factory import InspectionFactory
 from zond.services.json_storage import JsonStorage
+from zond.services.naming import file_stem
 from zond.services.template_loader import TemplateLoader
 
 
@@ -52,12 +53,16 @@ def test_cyrillic_is_not_escaped(store: JsonStorage, inspection) -> None:
     assert "Насос Н-12" in path.read_text(encoding="utf-8")
 
 
-def test_file_name_contains_template_slug(store: JsonStorage, inspection) -> None:
+def test_file_name_is_short_and_readable(store: JsonStorage, inspection) -> None:
+    """Имя видит пользователь: оно должно помещаться в список файлов."""
+
     path = store.finalize(inspection)
 
+    assert path.name == f"{file_stem(inspection)}.json"
     assert "sample" in path.name
     assert path.suffix == ".json"
     assert path.parent == store.inspections_dir
+    assert len(path.name) <= 40, path.name
 
 
 def test_atomic_write_leaves_no_temp_files(store: JsonStorage, inspection) -> None:

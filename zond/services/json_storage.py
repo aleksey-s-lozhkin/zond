@@ -23,6 +23,7 @@ from pathlib import Path
 
 from zond.models.inspection import Inspection, format_datetime
 from zond.services.errors import StorageError
+from zond.services.naming import file_stem
 
 logger = logging.getLogger(__name__)
 
@@ -211,11 +212,13 @@ class JsonStorage:
     # --------------------------------------------------------- имена файлов
 
     def file_name(self, inspection: Inspection) -> str:
-        """Имя файла завершённой проверки."""
+        """Имя файла проверки.
 
-        moment = (inspection.finished_at or inspection.started_at).astimezone()
-        stamp = moment.strftime("%Y%m%d-%H%M%S")
-        return f"{stamp}_{_slug(inspection.template.name)}_{inspection.inspection_id[:6]}.json"
+        Имя строит :mod:`zond.services.naming`: оно короткое и одинаковое для
+        JSON и PDF, поэтому протокол и его данные лежат рядом и по алфавиту.
+        """
+
+        return f"{file_stem(inspection)}.json"
 
     def pdf_path(self, inspection: Inspection) -> Path:
         """Путь для PDF-протокола этой проверки."""
@@ -259,15 +262,3 @@ class JsonStorage:
             ) from error
         except OSError as error:
             raise StorageError(f"Не удалось прочитать файл: {error}") from error
-
-
-def _slug(value: str, limit: int = 40) -> str:
-    """Безопасное для файловой системы имя из названия шаблона."""
-
-    cleaned = [char if (char.isalnum() or char in "-_") else "_" for char in value.strip()]
-    slug = "".join(cleaned).strip("_")
-
-    while "__" in slug:
-        slug = slug.replace("__", "_")
-
-    return (slug or "inspection")[:limit]

@@ -9,7 +9,9 @@ from dataclasses import dataclass
 class AppColors:
     """Палитра. Используется и в UI, и в PDF-отчёте."""
 
-    BACKGROUND = "#F5F7FA"
+    #: Совпадает с фоном логотипа: иначе логотип выделяется светлым
+    #: прямоугольником на фоне приложения.
+    BACKGROUND = "#EAECF0"
 
     SURFACE = "#FFFFFF"
     SURFACE_ALT = "#F9FAFB"
