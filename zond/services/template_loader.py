@@ -1,29 +1,48 @@
+"""Загрузка шаблона проверки из CSV."""
+
+from __future__ import annotations
+
+import logging
 from pathlib import Path
 
 from zond.models.template import Template
 from zond.services.csv_parser import CSVParser
 
+logger = logging.getLogger(__name__)
+
 
 class TemplateLoader:
-    """ Загружает шаблон проверки из CSV. """
+    """Превращает CSV-файл в :class:`Template`."""
 
-    def __init__(self):
+    def __init__(self, parser: CSVParser | None = None) -> None:
+        self.parser = parser or CSVParser()
 
-        self.parser = CSVParser()
+    def load(self, file_path: str | Path, name: str | None = None) -> Template:
+        """Загрузить шаблон.
 
+        Args:
+            file_path: путь к CSV-файлу шаблона.
+            name: отображаемое имя шаблона; по умолчанию — имя файла без
+                расширения.
 
-    def load(self, file_path: str) -> Template:
+        Raises:
+            TemplateParseError: файл нечитаем или структурно некорректен.
+        """
 
-        fields = self.parser.parse_template(
-            file_path
+        path = Path(file_path)
+        result = self.parser.parse_template(path)
+
+        template = Template(
+            name=name or path.stem,
+            fields=result.fields,
+            warnings=list(result.warnings),
         )
 
-        if fields is None:
-            raise ValueError(
-                "Не удалось загрузить шаблон"
-            )
-
-        return Template(
-            name=Path(file_path).stem,
-            fields=fields,
+        logger.info(
+            "Шаблон «%s» загружен: %s полей, %s групп",
+            template.name,
+            len(template.fields),
+            template.total_groups,
         )
+
+        return template

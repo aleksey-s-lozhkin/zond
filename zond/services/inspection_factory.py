@@ -1,24 +1,27 @@
+"""Создание новой проверки по шаблону."""
+
+from __future__ import annotations
+
 from zond.models.inspection import Inspection
 from zond.models.inspection_item import InspectionItem
 from zond.models.template import Template
 
 
 class InspectionFactory:
-    """Создает новую проверку по шаблону."""
+    """Создаёт новую проверку по шаблону."""
 
     @staticmethod
-    def create(template: Template) -> Inspection:
-
+    def create(
+        template: Template,
+        object_name: str = "",
+        inspector: str = "",
+    ) -> Inspection:
         inspection = Inspection(
             template=template,
+            object_name=object_name,
+            inspector=inspector,
         )
 
-        for field in template.fields:
-
-            inspection.items.append(
-                InspectionItem(
-                    field=field,
-                )
-            )
+        inspection.items = [InspectionItem(field=item) for item in template.fields]
 
         return inspection
