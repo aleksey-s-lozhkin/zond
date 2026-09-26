@@ -152,6 +152,45 @@ class TemplateLibrary:
 
         return self.root / f"{name}{TEMPLATE_SUFFIX}"
 
+    def missing_examples(self) -> list[Path]:
+        """Примеры поставки, которых нет в библиотеке.
+
+        Нужны, чтобы предложить восстановление: удаление необратимо, и без
+        этого вернуть случайно удалённый пример было бы нечем.
+        """
+
+        if self.examples_dir is None or not self.examples_dir.is_dir():
+            return []
+
+        return [
+            source
+            for source in sorted(self.examples_dir.glob(f"*{TEMPLATE_SUFFIX}"))
+            if not (self.root / self.name_of(source)).exists()
+        ]
+
+    def restore_examples(self) -> int:
+        """Вернуть в библиотеку отсутствующие примеры поставки.
+
+        Существующие файлы не трогаются: пользователь мог поправить пример под
+        себя, и затирать его правку нельзя.
+        """
+
+        restored = 0
+
+        for source in self.missing_examples():
+            try:
+                shutil.copy2(source, self.root / self.name_of(source))
+            except OSError:
+                logger.exception("Не удалось восстановить пример %s", source)
+                continue
+
+            restored += 1
+
+        if restored:
+            logger.info("Восстановлено примеров: %s", restored)
+
+        return restored
+
     # ------------------------------------------------------------ операции
 
     def import_file(self, source: str | Path) -> Path | None:

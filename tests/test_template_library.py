@@ -289,3 +289,74 @@ def test_library_seeds_readable_names(tmp_path: Path, examples: Path) -> None:
         entry.path.suffix == ".csv" for entry in library.list_entries()
     )
     assert library.list_entries()
+
+
+# ------------------------------------------------------- восстановление
+
+
+def test_missing_examples_are_listed(library: TemplateLibrary) -> None:
+    library.ensure()
+    library.delete("kip")
+
+    missing = {source.name for source in library.missing_examples()}
+
+    assert missing == {"kip.csv"}
+
+
+def test_restore_brings_deleted_example_back(library: TemplateLibrary) -> None:
+    """Удаление необратимо, поэтому должна быть возможность вернуть пример."""
+
+    library.ensure()
+    library.delete("kip")
+
+    assert library.restore_examples() == 1
+    assert library.path_of("kip").exists()
+    assert {entry.name for entry in library.list_entries()} == {"kip", "tso"}
+
+
+def test_restore_keeps_edited_example(library: TemplateLibrary) -> None:
+    """Правку пользователя восстановление не затирает."""
+
+    library.ensure()
+
+    edited = library.path_of("kip")
+    edited.write_text("order;name;label;type;group\n10;a;Своё;text;Гр\n", encoding="utf-8")
+
+    assert library.restore_examples() == 0
+    assert "Своё" in edited.read_text(encoding="utf-8")
+
+
+def test_restore_without_examples_does_nothing(tmp_path: Path) -> None:
+    library = TemplateLibrary(tmp_path / "library", examples_dir=tmp_path / "нет-такой")
+    library.ensure()
+
+    assert library.restore_examples() == 0
+
+
+def test_restore_button_appears_only_when_needed(app) -> None:
+    from tests.helpers import collect_texts
+
+    app.library.ensure()
+    app.open_templates()
+
+    assert not any(
+        "Вернуть примеры" in label for label in collect_texts(app.navigator.current.content)
+    )
+
+    entry = next(item for item in app.library.list_entries() if item.name.startswith("КИП"))
+    app.delete_template(entry)
+
+    labels = collect_texts(app.navigator.current.content)
+
+    assert any("Вернуть примеры" in label for label in labels)
+
+
+def test_restoring_from_app_updates_the_list(app) -> None:
+    app.library.ensure()
+    app.open_templates()
+
+    entry = next(item for item in app.library.list_entries() if item.name.startswith("КИП"))
+    app.delete_template(entry)
+
+    assert app.restore_examples() == 1
+    assert any(item.name.startswith("КИП") for item in app.library.list_entries())

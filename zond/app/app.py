@@ -500,6 +500,16 @@ class ZondApp:
 
         await self._load_template(target)
 
+    def restore_examples(self) -> int:
+        """Вернуть удалённые примеры и обновить список."""
+
+        restored = self.library.restore_examples()
+
+        if isinstance(self.navigator.current, TemplatesScreen):
+            self.navigator.current.refresh()
+
+        return restored
+
     def delete_template(self, entry: LibraryEntry) -> bool:
         """Удалить шаблон из библиотеки и обновить список."""
 

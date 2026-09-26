@@ -65,6 +65,12 @@ class TemplatesScreen(AppScreen):
         if entries:
             rows.append(ft.Container(height=Space.XS))
             rows.extend(self._row(entry) for entry in entries)
+
+            missing = self.app.library.missing_examples()
+
+            if missing:
+                rows.append(ft.Container(height=Space.SM))
+                rows.append(self._restore_button(len(missing)))
         else:
             rows.append(
                 EmptyState(
@@ -199,6 +205,23 @@ class TemplatesScreen(AppScreen):
             ),
         )
 
+    def _restore_button(self, count: int) -> ft.Control:
+        """Вернуть примеры, удалённые из библиотеки.
+
+        Кнопка появляется только когда чего-то не хватает: постоянно держать
+        её на экране незачем.
+        """
+
+        return ft.TextButton(
+            content=ft.Text(
+                f"Вернуть примеры ({count})",
+                size=FontSize.CAPTION,
+                weight=ft.FontWeight.W_600,
+            ),
+            icon=AppIcons.HISTORY,
+            on_click=self._restore,
+        )
+
     def _action_bar(self) -> ft.Control:
         return ActionBar(
             SecondaryButton(
@@ -225,6 +248,16 @@ class TemplatesScreen(AppScreen):
 
     async def _open(self, entry: LibraryEntry) -> None:
         await self.app.open_template(entry)
+
+    def _restore(self, event) -> None:
+        restored = self.app.restore_examples()
+
+        if not restored:
+            show_error(
+                self.app.page,
+                "Нечего восстанавливать",
+                "Все примеры поставки уже есть в библиотеке.",
+            )
 
     def _confirm_delete(self, entry: LibraryEntry) -> None:
         from zond.ui.components.dialogs import show_confirm

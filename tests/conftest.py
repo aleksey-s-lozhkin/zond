@@ -20,7 +20,7 @@ from tests.fakes import (  # noqa: E402
     FakeStoragePaths,
     FakeUrlLauncher,
 )
-from zond.app.app import ZondApp  # noqa: E402
+from zond.app.app import ZondApp, example_name  # noqa: E402
 from zond.services.json_storage import JsonStorage  # noqa: E402
 from zond.services.template_library import TemplateLibrary  # noqa: E402
 
@@ -54,6 +54,8 @@ def app(
     application.library = TemplateLibrary(
         tmp_path / "templates",
         examples_dir=PROJECT_ROOT / "templates",
+        # Как в приложении: примеры получают читаемые имена файлов.
+        name_of=example_name,
     )
 
     # Настоящие сервисы требуют живого сеанса Flet.

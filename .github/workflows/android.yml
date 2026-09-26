@@ -1,0 +1,76 @@
+name: Android APK
+
+# Сборка установочного файла. Запускается по тегу вида v1.0.0 — тогда APK
+# прикрепляется к релизу, откуда его скачивают без входа в GitHub. Вручную
+# сборку можно запустить из вкладки Actions: файл будет доступен как артефакт
+# запуска.
+#
+# В репозитории APK не хранится: он весит около 150 МБ, а история git
+# неизменяема — каждый клон тянул бы все версии сразу.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Сборка APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      # JDK нужен Android-сборке; на локальной машине его роль играет
+      # встроенный в Android Studio.
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Установка зависимостей
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Линтер и тесты
+        run: |
+          ruff check .
+          ruff format --check .
+          pytest
+
+      # Flutter для сборки flet скачивает сам: ему нужна своя версия, и та,
+      # что стоит на машине разработчика, может не подойти. Первая сборка из-за
+      # этого долгая — это ожидаемо.
+      - name: Сборка APK
+        run: flet build apk --yes
+
+      - name: Размер файла
+        run: du -h build/apk/*.apk
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: zond-ects-apk
+          path: build/apk/*.apk
+          if-no-files-found: error
+
+      # По тегу APK прикрепляется к релизу: оттуда его можно скачать и
+      # установить на телефон без учётной записи GitHub.
+      - name: Публикация релиза
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            build/apk/*.apk \
+            --title "${GITHUB_REF_NAME}" \
+            --generate-notes

@@ -192,7 +192,11 @@ flet build aab                  # Google Play
 flet build ipa --ios-team-id ID # iOS
 ```
 
-Для сборки нужны Flutter SDK, Android SDK и JDK 17 (для iOS — macOS и Xcode).
+Для локальной сборки нужны Flutter SDK, Android SDK и JDK 17 (для iOS — macOS
+и Xcode). Но собирать вручную не обязательно: по тегу вида `v1.0.0` APK
+собирается на GitHub Actions и прикрепляется к релизу, откуда его скачивают и
+устанавливают на телефон.
+
 Пошаговая инструкция, чек-лист проверки на устройстве и разбор возможных
 сложностей — в [docs/mobile.md](docs/mobile.md).
 
