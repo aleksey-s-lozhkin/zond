@@ -162,7 +162,7 @@ class TemplatesScreen(AppScreen):
                     ft.Container(
                         expand=True,
                         ink=True,
-                        on_click=lambda event, item=entry: self._open(item),
+                        on_click=self._open_handler(entry),
                         content=ft.Row(
                             spacing=Space.MD,
                             vertical_alignment=ft.CrossAxisAlignment.CENTER,
@@ -246,8 +246,18 @@ class TemplatesScreen(AppScreen):
     async def _add(self, event) -> None:
         await self.app.import_template()
 
-    async def _open(self, entry: LibraryEntry) -> None:
-        await self.app.open_template(entry)
+    def _open_handler(self, entry: LibraryEntry):
+        """Открыть шаблон по нажатию на строку.
+
+        Flet дожидается только настоящих корутин. Lambda, возвращающая
+        корутину, не дожидается никем: нажатие проходит, а открытие не
+        начинается. Поэтому обработчик — async-функция, а не lambda.
+        """
+
+        async def handler(event) -> None:
+            await self.app.open_template(entry)
+
+        return handler
 
     def _restore(self, event) -> None:
         restored = self.app.restore_examples()
