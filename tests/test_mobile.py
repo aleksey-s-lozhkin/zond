@@ -21,7 +21,7 @@ from tests.fakes import (
     FakeStoragePaths,
     FakeUrlLauncher,
 )
-from tests.helpers import choice_labels, choice_rows, click_row, collect_texts
+from tests.helpers import collect_texts
 from zond.app.app import INCOMING_KEEP, ZondApp
 from zond.app.platform import has_local_files, is_desktop, is_mobile
 from zond.services.json_storage import JsonStorage
@@ -132,9 +132,9 @@ def test_protocols_go_to_public_documents(
 
     asyncio.run(mobile_app.prepare())
 
-    assert mobile_app.storage.pdf_dir == documents / "ЗОНД"
+    assert mobile_app.storage.pdf_dir == documents / "ЗОНД" / "Протоколы"
     assert mobile_app.storage.pdf_dir.is_dir()
-    assert mobile_app.export_hint() == "Документы/ЗОНД"
+    assert mobile_app.export_hint() == "Документы/ЗОНД/Протоколы"
 
     # Данные проверок остаются в каталоге приложения.
     assert mobile_app.storage.inspections_dir.parent == tmp_path / "external" / "reports"
@@ -168,18 +168,67 @@ def test_documents_are_not_used_when_write_denied(
     monkeypatch.setattr("zond.app.app.PUBLIC_DOCUMENTS_DIR", documents)
     monkeypatch.setattr("zond.app.app._is_writable", lambda directory: False)
 
-    assert mobile_app._documents_export_dir() is None
+    assert mobile_app._shared_dir("Протоколы") is None
 
 
-def test_desktop_keeps_project_reports(app: ZondApp, monkeypatch, tmp_path: Path) -> None:
-    documents = tmp_path / "Documents"
+def test_desktop_uses_documents_when_available(
+    app: ZondApp,
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    """На настольной платформе протоколы тоже уходят в «Документы»."""
+
+    documents = tmp_path / "Документы"
     documents.mkdir()
-    monkeypatch.setattr("zond.app.app.PUBLIC_DOCUMENTS_DIR", documents)
+    monkeypatch.setattr("zond.app.app.HOME_DOCUMENTS_DIR", documents)
+
+    asyncio.run(app.prepare())
+
+    assert app.export_dir == documents / "ЗОНД" / "Протоколы"
+
+
+def test_desktop_keeps_project_reports_without_documents(
+    app: ZondApp,
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    """Нет общей папки — протоколы остаются в проекте."""
+
+    monkeypatch.setattr("zond.app.app.HOME_DOCUMENTS_DIR", tmp_path / "нет-такой")
 
     asyncio.run(app.prepare())
 
     assert app.export_dir is None
     assert app.storage.pdf_dir == app.storage.root / "pdf"
+
+
+def test_library_goes_to_documents_when_available(
+    app: ZondApp,
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    """Библиотека шаблонов тоже живёт в общей папке: туда кладут файлы с ПК."""
+
+    documents = tmp_path / "Документы"
+    documents.mkdir()
+    monkeypatch.setattr("zond.app.app.HOME_DOCUMENTS_DIR", documents)
+
+    asyncio.run(app.prepare())
+
+    assert app.library.root == documents / "ЗОНД" / "Шаблоны"
+    assert app.library.root.is_dir()
+
+
+def test_library_falls_back_to_app_folder(
+    app: ZondApp,
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr("zond.app.app.HOME_DOCUMENTS_DIR", tmp_path / "нет-такой")
+
+    asyncio.run(app.prepare())
+
+    assert app.library.root == app.storage.root / "templates"
 
 
 def test_location_label_shows_export_folder(
@@ -197,7 +246,7 @@ def test_location_label_shows_export_folder(
 
     label = mobile_app.location_label(mobile_app.storage.pdf_dir / "protocol.pdf")
 
-    assert label == "Документы/ЗОНД"
+    assert label == "Документы/ЗОНД/Протоколы"
 
 
 def test_location_label_shows_folder_on_mobile(mobile_app: ZondApp) -> None:
@@ -544,54 +593,26 @@ def test_unknown_sample_gets_file_name_as_title(tmp_path: Path) -> None:
     assert sample_title(tmp_path / "неизвестный.csv") == "неизвестный"
 
 
-def test_template_chooser_offers_own_file_first(app: ZondApp) -> None:
-    """Действие одно, поэтому и вход один: файл первым, примеры ниже."""
+def test_start_screen_opens_the_library(app: ZondApp) -> None:
+    """Стартовый экран ведёт в библиотеку шаблонов, а не в диалог."""
 
-    app.choose_template()
+    from zond.ui.screens.templates_screen import TemplatesScreen
 
-    labels = choice_labels(app)
+    app.start()
+    app.open_templates()
 
-    assert "Файл из памяти устройства" in labels
-    assert "Примеры" in labels
-
-    rows = choice_rows(app)
-
-    assert "Файл из памяти устройства" in collect_texts(rows[0].content)
+    assert isinstance(app.navigator.current, TemplatesScreen)
 
 
-def test_template_chooser_lists_samples(app: ZondApp) -> None:
-    app.choose_template()
+def test_library_screen_lists_templates(app: ZondApp) -> None:
 
-    labels = choice_labels(app)
+    app.start()
+    app.open_templates()
 
-    assert any("учебн" in label.lower() or "пример" in label.lower() for label in labels)
+    names = collect_texts(app.navigator.current.content)
 
-
-def test_choosing_sample_loads_template(app: ZondApp) -> None:
-    """Выбор примера в списке загружает шаблон."""
-
-    app.choose_template()
-
-    rows = choice_rows(app)
-
-    # Первая строка — свой файл, дальше идут примеры.
-    click_row(rows[1])
-
-    assert app.state.template is not None
-
-
-def test_choosing_own_file_opens_the_picker(
-    app: ZondApp, choose_file, sample_template: Path
-) -> None:
-    """Первая строка ведёт в системный выбор файла."""
-
-    choose_file(sample_template)
-    app.choose_template()
-
-    click_row(choice_rows(app)[0])
-
-    assert app.state.template is not None
-    assert app.state.template.name == "sample"
+    assert any("Добавить шаблон из файла" in label for label in names)
+    assert any("Шаблонов пока нет" in label or "шаблон" in label for label in names)
 
 
 def test_upload_screen_has_single_template_entry(app: ZondApp) -> None:

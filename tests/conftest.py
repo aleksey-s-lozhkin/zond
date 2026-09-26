@@ -22,6 +22,7 @@ from tests.fakes import (  # noqa: E402
 )
 from zond.app.app import ZondApp  # noqa: E402
 from zond.services.json_storage import JsonStorage  # noqa: E402
+from zond.services.template_library import TemplateLibrary  # noqa: E402
 
 # Минимальный шаблон для тестов: 12 полей, 4 группы. Это техническая
 # фикстура, а не образец поставки, поэтому лежит в тестовых данных.
@@ -39,8 +40,21 @@ def storage(tmp_path: Path) -> JsonStorage:
 
 
 @pytest.fixture
-def app(page: FakePage, storage: JsonStorage) -> ZondApp:
+def app(
+    page: FakePage,
+    storage: JsonStorage,
+    tmp_path: Path,
+    monkeypatch,
+) -> ZondApp:
     application = ZondApp(page, storage=storage)
+
+    # Библиотека шаблонов и общие каталоги не должны трогать домашний
+    # каталог разработчика: всё уводится во временную папку.
+    monkeypatch.setattr("zond.app.app.HOME_DOCUMENTS_DIR", tmp_path / "Documents")
+    application.library = TemplateLibrary(
+        tmp_path / "templates",
+        examples_dir=PROJECT_ROOT / "templates",
+    )
 
     # Настоящие сервисы требуют живого сеанса Flet.
     application.url_launcher = FakeUrlLauncher()

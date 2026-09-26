@@ -14,15 +14,16 @@ from zond.app.state import ZondState
 from zond.models.inspection import Inspection
 from zond.services.errors import ReportError, StorageError, TemplateParseError, ZondError
 from zond.services.inspection_factory import InspectionFactory
-from zond.services.json_storage import JsonStorage, StoredInspection
+from zond.services.json_storage import DEFAULT_REPORTS_DIR, JsonStorage, StoredInspection
+from zond.services.naming import safe_file_name
 from zond.services.report_generator import ReportGenerator
-from zond.services.sample_templates import available_samples
+from zond.services.sample_templates import sample_title, samples_dir
+from zond.services.template_library import LibraryEntry, TemplateLibrary
 from zond.services.template_loader import TemplateLoader
 from zond.ui.colors import AppColors
 from zond.ui.components.dialogs import (
     show_confirm,
     show_error,
-    show_template_choice,
 )
 from zond.ui.screens.base_screen import AppScreen
 from zond.ui.screens.check_screen import CheckScreen
@@ -31,6 +32,7 @@ from zond.ui.screens.finish_screen import FinishScreen
 from zond.ui.screens.help_screen import HelpScreen
 from zond.ui.screens.history_screen import HistoryScreen
 from zond.ui.screens.inspection_screen import InspectionScreen
+from zond.ui.screens.templates_screen import TemplatesScreen
 from zond.ui.screens.upload_screen import UploadScreen
 from zond.ui.theme import build_theme
 
@@ -51,8 +53,18 @@ DEFAULT_WINDOW = (430, 900)
 #: Общедоступная папка «Документы» на Android.
 PUBLIC_DOCUMENTS_DIR = Path("/storage/emulated/0/Documents")
 
-#: Подкаталог приложения в «Документах» для готовых протоколов.
+#: Папка «Документы» на настольных платформах. Отдельная константа, чтобы
+#: тесты не писали в домашний каталог разработчика.
+HOME_DOCUMENTS_DIR = Path.home() / "Documents"
+
+#: Каталог приложения в общей папке «Документы».
 EXPORT_DIR_NAME = "ЗОНД"
+
+#: Подкаталог с готовыми протоколами.
+PROTOCOLS_SUBDIR = "Протоколы"
+
+#: Подкаталог с библиотекой шаблонов.
+TEMPLATES_SUBDIR = "Шаблоны"
 
 #: Сколько копий выбранных файлов хранить в рабочем каталоге.
 #:
@@ -67,6 +79,17 @@ MIME_TYPES = {
     ".json": "application/json",
     ".csv": "text/csv",
 }
+
+
+def example_name(source: Path) -> str:
+    """Имя примера в библиотеке.
+
+    В поставке файлы названы техническими именами, а библиотека принадлежит
+    пользователю: в файловом менеджере он должен видеть то же название, что и
+    в списке приложения.
+    """
+
+    return safe_file_name(f"{sample_title(source)}{source.suffix}")
 
 
 def _is_writable(directory: Path) -> bool:
@@ -105,6 +128,14 @@ class ZondApp:
         #: Каталог, куда складываются готовые протоколы, если платформа
         #: предоставляет общедоступную папку.
         self.export_dir: Path | None = None
+
+        #: Библиотека шаблонов. До первого prepare живёт в каталоге по
+        #: умолчанию, затем переносится в общую папку, если она доступна.
+        self.library = TemplateLibrary(
+            DEFAULT_REPORTS_DIR / "templates",
+            examples_dir=samples_dir(),
+            name_of=example_name,
+        )
         self.template_loader = TemplateLoader()
         self.report_generator = ReportGenerator()
 
@@ -156,71 +187,96 @@ class ZondApp:
         window.min_height = 600
 
     async def prepare(self) -> None:
-        """Уточнить каталог данных под текущую платформу.
+        """Уточнить каталоги под текущую платформу и разложить шаблоны.
 
         На мобильных платформах каталог рядом с приложением доступен только
         для чтения, поэтому данные проверок переносятся в доступный каталог:
         без этого не сохранился бы даже черновик.
 
         Вызывается после показа стартового экрана: интерфейс строится
-        синхронно, а каталог запрашивается у системы асинхронно. Если он
-        изменился, экран перерисовывается, чтобы путь на нём был верным.
+        синхронно, а каталог данных запрашивается у системы асинхронно.
         """
 
-        if not is_mobile(self.page):
-            return
-
-        root = await self._mobile_data_dir()
-        export = self._documents_export_dir()
+        root = await self._mobile_data_dir() if is_mobile(self.page) else None
+        export = self._shared_dir(PROTOCOLS_SUBDIR)
 
         candidate = JsonStorage(
             root if root is not None else self.storage.root,
             pdf_dir=export,
         )
 
-        if candidate.root == self.storage.root and candidate.pdf_dir == self.storage.pdf_dir:
-            return
+        # Хранилище подменяется только при реальном изменении каталогов:
+        # иначе объект, переданный снаружи, расходится с состоянием
+        # приложения.
+        changed = candidate.root != self.storage.root or candidate.pdf_dir != self.storage.pdf_dir
 
-        self.storage = candidate
+        if changed:
+            self.storage = candidate
+
         self.export_dir = export
 
+        self._prepare_library(candidate)
+
         logger.info(
-            "Мобильная платформа: данные %s, протоколы %s",
+            "Каталоги: данные %s, протоколы %s, шаблоны %s",
             candidate.root,
             candidate.pdf_dir,
+            self.library.root,
         )
 
-        if self.navigator.current is not None:
+        if changed and self.navigator.current is not None:
             self.restart()
 
-    def _documents_export_dir(self) -> Path | None:
-        """Общедоступная папка для готовых протоколов.
+    def _documents_base(self) -> Path | None:
+        """Общая папка «Документы» на текущей платформе."""
 
-        Протокол забирают с телефона, поэтому его лучше положить туда, где
-        пользователь ищет файлы сам. Если платформа не разрешает запись в
-        общий каталог, протоколы остаются в каталоге приложения.
+        candidates = [PUBLIC_DOCUMENTS_DIR] if is_android(self.page) else [HOME_DOCUMENTS_DIR]
+
+        for base in candidates:
+            if base.is_dir():
+                return base
+
+        return None
+
+    def _shared_dir(self, subdir: str) -> Path | None:
+        """Папка приложения в «Документах» для файлов, которые забирает пользователь.
+
+        Протоколы и шаблоны складываются туда, где пользователь ищет файлы
+        сам: протокол забирают с телефона, а шаблоны, наоборот, кладут туда с
+        компьютера. Если платформа не разрешает запись, каталог не
+        используется, и вызывающий код берёт запасной вариант.
         """
 
-        if not is_android(self.page) or not PUBLIC_DOCUMENTS_DIR.is_dir():
+        base = self._documents_base()
+
+        if base is None:
             return None
 
-        target = PUBLIC_DOCUMENTS_DIR / EXPORT_DIR_NAME
+        target = base / EXPORT_DIR_NAME / subdir
 
         if _is_writable(target):
-            logger.info("Протоколы сохраняются в общий каталог: %s", target)
             return target
 
-        logger.info(
-            "Запись в %s недоступна, протоколы останутся в каталоге приложения",
-            target,
-        )
+        logger.info("Запись в %s недоступна, используется каталог приложения", target)
         return None
+
+    def _prepare_library(self, storage: JsonStorage) -> None:
+        """Собрать библиотеку шаблонов и разложить в неё примеры."""
+
+        root = self._shared_dir(TEMPLATES_SUBDIR) or (storage.root / "templates")
+
+        self.library = TemplateLibrary(
+            root,
+            examples_dir=samples_dir(),
+            name_of=example_name,
+        )
+        self.library.ensure()
 
     def export_hint(self) -> str:
         """Короткая подпись, куда попадают готовые протоколы."""
 
         if self.export_dir is not None:
-            return f"Документы/{self.export_dir.name}"
+            return f"Документы/{EXPORT_DIR_NAME}/{PROTOCOLS_SUBDIR}"
 
         return str(self.storage.pdf_dir)
 
@@ -414,20 +470,46 @@ class ZondApp:
         logger.info("Выбранный файл сохранён: %s", target)
         return target
 
-    def choose_template(self) -> None:
-        """Предложить источник шаблона: свой файл или готовый пример.
+    def open_templates(self) -> None:
+        """Открыть библиотеку шаблонов."""
 
-        Действие одно — загрузить шаблон, — поэтому и вход один. Два пункта
-        стартового экрана выдавали одно действие за два и наводили на мысль,
-        что шаблон устанавливается в приложение.
-        """
+        self.navigator.push(TemplatesScreen(self))
 
-        show_template_choice(
-            self.page,
-            on_file=self.pick_template,
-            samples=available_samples(),
-            on_sample=self._load_template,
-        )
+    async def open_template(self, entry: LibraryEntry) -> None:
+        """Загрузить шаблон из библиотеки."""
+
+        await self._load_template(entry.path)
+
+    async def import_template(self) -> None:
+        """Добавить шаблон из памяти устройства в библиотеку и открыть его."""
+
+        path = await self._pick_file(["csv"], "Выберите CSV-шаблон проверки")
+
+        if path is None:
+            return
+
+        target = self.library.import_file(path)
+
+        if target is None:
+            show_error(
+                self.page,
+                "Не удалось добавить шаблон",
+                f"Файл «{path.name}» не удалось скопировать в библиотеку.",
+            )
+            return
+
+        await self._load_template(target)
+
+    def delete_template(self, entry: LibraryEntry) -> bool:
+        """Удалить шаблон из библиотеки и обновить список."""
+
+        if not self.library.delete(entry.name):
+            return False
+
+        if isinstance(self.navigator.current, TemplatesScreen):
+            self.navigator.current.refresh()
+
+        return True
 
     # ----------------------------------------------------------- сценарий
 

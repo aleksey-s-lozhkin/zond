@@ -80,7 +80,7 @@ def test_help_shows_export_folder_after_mobile_prepare(
 
     asyncio.run(mobile_app.prepare())
 
-    assert "Документы/ЗОНД" in help_texts(mobile_app)
+    assert "Документы/ЗОНД/Протоколы" in help_texts(mobile_app)
 
 
 def test_help_explains_marks(app: ZondApp) -> None:

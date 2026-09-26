@@ -20,6 +20,8 @@ if TYPE_CHECKING:  # pragma: no cover - только для аннотаций
 #: Короткие обозначения поставляемых шаблонов.
 #: Латиница выбрана намеренно: имя файла уходит вложением в письмо и не должно
 #: зависеть от кодировки почтового клиента или архиватора.
+#: Ключи — и технические имена из поставки, и читаемые имена в библиотеке:
+#: шаблон может быть загружен из любого места.
 TEMPLATE_CODES = {
     "kip_kranovyy_uzel_mg": "KIP",
     "elektroustanovki": "EL",
@@ -27,6 +29,12 @@ TEMPLATE_CODES = {
     "server_bezopasnost": "SRV",
     "uaz_patriot_to": "UAZ",
     "podyomnoe_sooruzhenie": "PSO",
+    "КИП кранового узла газопровода": "KIP",
+    "Электроустановки": "EL",
+    "Технические средства охраны": "TSO",
+    "Серверное помещение и сервер": "SRV",
+    "УАЗ Патриот — ТО и техсостояние": "UAZ",
+    "Стационарное подъёмное сооружение": "PSO",
 }
 
 #: Сколько символов названия шаблона оставлять, если короткого кода нет.
@@ -84,3 +92,23 @@ def safe_name(value: str) -> str:
     cleaned = [char if (char.isalnum() or char in "-_") else "_" for char in value.strip()]
 
     return "".join(cleaned).strip("_") or DEFAULT_CODE
+
+
+#: Символы, недопустимые в имени файла на Android и Windows.
+FORBIDDEN_IN_NAME = ':*?"<>|/\\'
+
+
+def safe_file_name(value: str) -> str:
+    """Убрать из имени символы, недопустимые в файловой системе.
+
+    Название шаблона задаёт человек, и в нём может стоять двоеточие или
+    звёздочка: как подпись это нормально, как имя файла — нет.
+    """
+
+    cleaned = [char if char not in FORBIDDEN_IN_NAME else " " for char in value.strip()]
+    text = "".join(cleaned)
+
+    while "  " in text:
+        text = text.replace("  ", " ")
+
+    return text.strip().rstrip(".") or "шаблон"

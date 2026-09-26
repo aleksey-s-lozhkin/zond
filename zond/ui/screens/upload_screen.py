@@ -194,7 +194,7 @@ class UploadScreen(AppScreen):
         await self.app.pick_inspection()
 
     def _choose_template(self, event) -> None:
-        self.app.choose_template()
+        self.app.open_templates()
 
     def _open_history(self, event) -> None:
         self.app.open_history()
