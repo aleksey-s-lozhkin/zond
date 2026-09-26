@@ -23,7 +23,9 @@ from tests.fakes import (  # noqa: E402
 from zond.app.app import ZondApp  # noqa: E402
 from zond.services.json_storage import JsonStorage  # noqa: E402
 
-SAMPLE_TEMPLATE = PROJECT_ROOT / "templates" / "sample.csv"
+# Минимальный шаблон для тестов: 12 полей, 4 группы. Это техническая
+# фикстура, а не образец поставки, поэтому лежит в тестовых данных.
+SAMPLE_TEMPLATE = PROJECT_ROOT / "tests" / "data" / "sample.csv"
 
 
 @pytest.fixture

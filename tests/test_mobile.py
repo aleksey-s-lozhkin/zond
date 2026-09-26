@@ -211,7 +211,7 @@ def test_mobile_pick_file_requests_content(mobile_app: ZondApp, tmp_path: Path) 
 
 
 def test_mobile_picked_file_is_a_valid_template(mobile_app: ZondApp) -> None:
-    payload = Path("templates/sample.csv").read_bytes()
+    payload = Path("tests/data/sample.csv").read_bytes()
     mobile_app.file_picker.pick_files = picker_returning([make_file("sample.csv", payload)], {})
 
     path = asyncio.run(mobile_app._pick_file(["csv"], "Тест"))
@@ -308,6 +308,19 @@ def test_missing_file_is_reported_on_mobile(mobile_app: ZondApp, tmp_path: Path)
 # ------------------------------------------------------- встроенные образцы
 
 
+def test_educational_example_is_not_bundled() -> None:
+    """Учебный пример — фикстура тестов, а не образец поставки.
+
+    Он нужен для разбора формата и проверок, но в приложении показываться
+    не должен: там только рабочие шаблоны.
+    """
+
+    names = {path.name for path in available_samples()}
+
+    assert "sample.csv" not in names
+    assert not (samples_dir() / "sample.csv").exists()
+
+
 def test_samples_are_available() -> None:
     samples = available_samples()
 
@@ -366,13 +379,13 @@ def test_sample_loader_is_a_coroutine_function(app: ZondApp) -> None:
 
     import inspect
 
-    handler = app._sample_loader(Path("templates/sample.csv"))
+    handler = app._sample_loader(Path("tests/data/sample.csv"))
 
     assert inspect.iscoroutinefunction(handler)
 
 
 def test_sample_loader_loads_template(app: ZondApp) -> None:
-    handler = app._sample_loader(Path("templates/sample.csv"))
+    handler = app._sample_loader(Path("tests/data/sample.csv"))
 
     asyncio.run(handler(None))
 

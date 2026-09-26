@@ -48,7 +48,7 @@ from zond.ui.screens.inspection_screen import InspectionScreen  # noqa: E402
 from zond.utils.logging_setup import configure_logging  # noqa: E402
 
 ASSETS_DIR = BASE_DIR / "assets"
-SAMPLE_TEMPLATE = BASE_DIR / "templates" / "sample.csv"
+SAMPLE_TEMPLATE = BASE_DIR / "tests" / "data" / "sample.csv"
 
 #: Сколько секунд ждать подключения клиента Flet, прежде чем сдаться.
 CLIENT_TIMEOUT = 45.0

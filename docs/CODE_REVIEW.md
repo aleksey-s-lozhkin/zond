@@ -93,7 +93,7 @@ zond/
 | Точка входа, конфигурация страницы, тема | `ects.py`, `app/app.py:38-57` | ✅ запускается |
 | Определение кодировки CSV (8 кодировок) | `services/csv_parser.py:11-26` | ✅ `utf-8-sig` определён верно |
 | Определение разделителя (`, ; \t`) | `services/csv_parser.py:141-147` | ⚠️ эвристика, ломается на смешанных данных |
-| Парсинг CSV → `list[Field]` | `services/csv_parser.py:28-139` | ✅ `templates/sample.csv` → 12 полей |
+| Парсинг CSV → `list[Field]` | `services/csv_parser.py:28-139` | ✅ `tests/data/sample.csv` → 12 полей |
 | Парсинг `options` для dropdown | `services/csv_parser.py:149-165` | ✅ `Насос;Компрессор;...` → 5 опций |
 | Валидация обязательных колонок | `services/csv_parser.py:51-62` | ✅ `name,label,type` |
 | Сборка `Template` | `services/template_loader.py` | ✅ |
@@ -184,7 +184,7 @@ checkbox   -> Checkbox
 textarea   -> TextField
 ```
 
-При этом `templates/sample.csv:2` **содержит** поле `inspection_date` типа `date` с
+При этом `tests/data/sample.csv:2` **содержит** поле `inspection_date` типа `date` с
 `required=true` — то есть на первом же экране проверки пользователь видит битую строку.
 
 ### CRITICAL — сценарий не доведён до конца, данные теряются
@@ -336,7 +336,7 @@ ControlSize) и компоненты `ui/components/*` объявлены, но 
 
 **MINOR-22.** `assets/images/logo.png` — 1.9 МБ для логотипа 110×110.
 
-**MINOR-23.** В `models/field.py` `order: int = 0` при `templates/sample.csv` с шагом 10 —
+**MINOR-23.** В `models/field.py` `order: int = 0` при `tests/data/sample.csv` с шагом 10 —
 сортировка по `order` стабильна, но `order` не проверяется на уникальность.
 
 **MINOR-24.** `inspection_screen.py:46` смешивает `ft.Button`, `check_screen.py:79` —
@@ -490,7 +490,7 @@ ControlSize) и компоненты `ui/components/*` объявлены, но 
 ```bash
 # 1. Запуск сценария целиком (заглушка страницы Flet вместо реального окна)
 python - <<'PY'
-# FakePage + ZondApp + подмена file_picker.pick_files → templates/sample.csv
+# FakePage + ZondApp + подмена file_picker.pick_files → tests/data/sample.csv
 # далее CheckScreen.start_check → InspectionScreen → прогон 4 групп → JsonStorage.save
 PY
 # Результат: 4 группы, 12 полей, JSON записан; finished_at == None; answers == {}

@@ -9,7 +9,6 @@
 | [`kip_kranovyy_uzel_mg.csv`](../templates/kip_kranovyy_uzel_mg.csv) | КИП кранового узла магистрального газопровода | 152 | 10 |
 | [`elektroustanovki.csv`](../templates/elektroustanovki.csv) | Электроустановки | 123 | 11 |
 | [`tehnicheskie_sredstva_ohrany.csv`](../templates/tehnicheskie_sredstva_ohrany.csv) | Технические средства охраны | 113 | 10 |
-| [`sample.csv`](../templates/sample.csv) | Учебный пример | 12 | 4 |
 
 > **Главное.** Шаблоны — методические заготовки, а не утверждённые документы.
 > Конкретные номера пунктов, периодичность и нормируемые значения определяются
