@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import flet as ft
 
+from zond.models.inspection import format_datetime
 from zond.ui.colors import AppColors
 from zond.ui.components.buttons import PrimaryButton, SecondaryButton
 from zond.ui.components.cards import EmptyState, InfoRow, SectionCard
@@ -13,12 +14,40 @@ from zond.ui.design import FontSize, Space
 from zond.ui.icons import AppIcons
 from zond.ui.screens.base_screen import AppScreen
 
+#: Значение радиокнопки «начать с пустой формы».
+REPEAT_NONE = ""
+
+#: Сколько символов названия объекта показывать в списке прошлых проверок.
+OBJECT_PREVIEW = 34
+
+
+def _candidate_label(inspection) -> str:
+    """Строка прошлой проверки для списка выбора."""
+
+    moment = inspection.finished_at or inspection.started_at
+    label = f"{format_datetime(moment)} · несоответствий: {len(inspection.problems)}"
+
+    name = inspection.object_name.strip()
+
+    if name:
+        if len(name) > OBJECT_PREVIEW:
+            name = name[:OBJECT_PREVIEW] + "…"
+
+        label += f" · {name}"
+
+    return label
+
 
 class CheckScreen(AppScreen):
     """Показывает состав шаблона и собирает сведения о проверке."""
 
     def compose(self) -> ft.Control:
         template = self.app.state.template
+
+        #: Проверки, выбранные для переноса значений: значение радиокнопки —
+        #: идентификатор проверки.
+        self.repeat_choices: dict[str, object] = {}
+        self.repeat_group: ft.RadioGroup | None = None
 
         if template is None:
             return EmptyState(
@@ -99,6 +128,11 @@ class CheckScreen(AppScreen):
             )
         )
 
+        repeat_card = self._repeat_card()
+
+        if repeat_card is not None:
+            cards.append(repeat_card)
+
         cards.append(
             SectionCard(
                 *[
@@ -127,23 +161,91 @@ class CheckScreen(AppScreen):
                         on_click=self._go_back,
                         expand=True,
                     ),
-                    PrimaryButton(
-                        "Начать проверку",
-                        icon=AppIcons.PLAY,
-                        on_click=self._start,
+                    SecondaryButton(
+                        "Отправить шаблон",
+                        icon=AppIcons.SHARE,
+                        on_click=self._share,
                         expand=True,
                     ),
+                    self._start_button(),
                 ),
             ],
         )
 
+    def _start_button(self) -> PrimaryButton:
+        self.start_button = PrimaryButton(
+            "Начать проверку",
+            icon=AppIcons.PLAY,
+            on_click=self._start,
+            expand=True,
+        )
+
+        return self.start_button
+
+    # -------------------------------------------------------- повторная проверка
+
+    def _repeat_card(self) -> ft.Control | None:
+        """Выбор проверки, с которой перенести значения.
+
+        Список выбирается вручную: объектов немного, а автоматический подбор
+        по одному названию шаблона легко подставил бы ответы с чужого объекта.
+        """
+
+        candidates = self.app.repeat_candidates()
+
+        if not candidates:
+            return None
+
+        options: list[ft.Control] = [ft.Radio(value=REPEAT_NONE, label="Начать с пустой формы")]
+
+        for inspection in candidates:
+            key = inspection.inspection_id
+            self.repeat_choices[key] = inspection
+            options.append(ft.Radio(value=key, label=_candidate_label(inspection)))
+
+        self.repeat_group = ft.RadioGroup(
+            value=REPEAT_NONE,
+            on_change=self._choose_repeat,
+            content=ft.Column(controls=options, spacing=Space.XS, tight=True),
+        )
+
+        subtitle = (
+            "Значения прошлой проверки подставятся в форму — править нужно "
+            "только изменившееся. Прежние замечания разбираются отдельным шагом."
+        )
+
+        return SectionCard(
+            self.repeat_group,
+            title=f"Повторная проверка ({len(candidates)})",
+            subtitle=subtitle,
+            icon=AppIcons.HISTORY,
+        )
+
     # ------------------------------------------------------------- обработчики
+
+    def _choose_repeat(self, event) -> None:
+        selected = self.repeat_group.value if self.repeat_group else REPEAT_NONE
+
+        if self.start_button is not None:
+            self.start_button.content = ft.Text(
+                "Начать проверку" if selected == REPEAT_NONE else "Начать с прошлой",
+                size=FontSize.SUBTITLE,
+                weight=ft.FontWeight.W_600,
+            )
+
+        self.safe_update()
+
+    async def _share(self, event) -> None:
+        await self.app.share_template()
 
     def _go_back(self, event) -> None:
         self.app.navigator.back()
 
     def _start(self, event) -> None:
+        selected = self.repeat_group.value if self.repeat_group else REPEAT_NONE
+
         self.app.start_inspection(
             object_name=(self.object_input.value or "").strip(),
             executor=(self.executor_input.value or "").strip(),
+            previous=self.repeat_choices.get(selected or ""),
         )

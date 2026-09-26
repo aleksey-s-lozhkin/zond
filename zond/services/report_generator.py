@@ -30,7 +30,7 @@ from reportlab.platypus import (
 )
 
 from zond.models.inspection import Inspection, format_datetime
-from zond.models.verdict import Verdict, classify
+from zond.models.verdict import NOT_CHECKED, NOT_RESOLVED, RESOLVED, Verdict, classify
 from zond.services.errors import ReportError
 
 logger = logging.getLogger(__name__)
@@ -243,6 +243,19 @@ class ReportGenerator:
             ("Идентификатор", inspection.inspection_id, "cell"),
         ]
 
+        if inspection.is_repeat:
+            defects = inspection.previous_defects
+            resolved = len(inspection.resolved_defects)
+
+            rows.insert(
+                -1,
+                (
+                    "Замечания прошлой проверки",
+                    f"устранено {resolved} из {len(defects)}" if defects else "не выявлялись",
+                    "valueOk" if defects and resolved == len(defects) else "cell",
+                ),
+            )
+
         table = Table(
             [
                 [
@@ -268,6 +281,7 @@ class ReportGenerator:
         story: list = [table, Spacer(1, 10)]
 
         story.extend(ReportGenerator._problem_block(inspection, styles))
+        story.extend(ReportGenerator._repeat_block(inspection, styles))
 
         missing = inspection.missing_required
 
@@ -283,6 +297,74 @@ class ReportGenerator:
             story.append(Spacer(1, 8))
 
         return story
+
+    @staticmethod
+    def _repeat_block(inspection: Inspection, styles: dict) -> list:
+        """Замечания прошлой проверки и их состояние.
+
+        На повторном выезде важнее не сам список, а динамика: что закрыто, а
+        что осталось. Поэтому состояние вынесено отдельной колонкой и
+        подсвечено.
+        """
+
+        if not inspection.is_repeat:
+            return []
+
+        defects = inspection.previous_defects
+
+        if not defects:
+            return []
+
+        rows = [
+            [
+                Paragraph("Шаг проверки", styles["cellBold"]),
+                Paragraph("Поле", styles["cellBold"]),
+                Paragraph("В прошлый раз", styles["cellBold"]),
+                Paragraph("Сейчас", styles["cellBold"]),
+            ]
+        ]
+
+        for item in defects:
+            state, state_style = _resolution_style(item.resolution)
+
+            rows.append(
+                [
+                    Paragraph(escape(item.field.group), styles["cell"]),
+                    Paragraph(escape(item.field.title), styles["cell"]),
+                    Paragraph(escape(item.display_previous()), styles["cellProblem"]),
+                    Paragraph(escape(state), styles[state_style]),
+                ]
+            )
+
+        table = Table(
+            rows,
+            colWidths=[36 * mm, None, 34 * mm, 30 * mm],
+            hAlign="LEFT",
+            repeatRows=1,
+        )
+        table.setStyle(
+            TableStyle(
+                [
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#EFF4FF")),
+                    ("LINEBELOW", (0, 0), (-1, 0), 0.5, ACCENT),
+                    ("INNERGRID", (0, 1), (-1, -1), 0.2, BORDER),
+                    ("TOPPADDING", (0, 0), (-1, -1), 4),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ]
+            )
+        )
+
+        resolved = len(inspection.resolved_defects)
+
+        return [
+            Paragraph(
+                f"Замечания прошлой проверки: {len(defects)}, устранено {resolved}",
+                styles["group"],
+            ),
+            table,
+            Spacer(1, 12),
+        ]
 
     @staticmethod
     def _problem_block(inspection: Inspection, styles: dict) -> list:
@@ -512,3 +594,15 @@ def _resolve_fonts() -> tuple[str, str]:
         "кириллические символы могут отображаться некорректно."
     )
     return "Helvetica", "Helvetica-Bold"
+
+
+def _resolution_style(resolution: str) -> tuple[str, str]:
+    """Подпись и стиль состояния замечания для протокола."""
+
+    if resolution == RESOLVED:
+        return resolution, "valueOk"
+
+    if resolution == NOT_RESOLVED:
+        return resolution, "valueProblem"
+
+    return NOT_CHECKED, "cell"

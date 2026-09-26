@@ -70,10 +70,14 @@ class UploadScreen(AppScreen):
         cont: list[ft.Control] = []
 
         if stored:
-            hint = "Черновики и готовые проверки на этом устройстве"
+            finished = len(stored) - drafts
+
+            # Конкретные числа вместо пояснений: что такое черновик, на этом
+            # экране всё равно не объяснить, а список показывает статусы сам.
+            hint = f"Завершённых: {finished}"
 
             if drafts:
-                hint = f"Черновиков: {drafts}. Все проверки на этом устройстве"
+                hint += f" · Незаконченных: {drafts}"
 
             cont.append(
                 ActionCard(

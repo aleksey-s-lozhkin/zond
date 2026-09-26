@@ -44,24 +44,14 @@ class InspectionItem:
         return self.field.required and self.is_empty
 
     def display_value(self) -> str:
-        """Значение в виде строки для отчёта и списков.
+        """Значение в виде строки для отчёта и списков."""
 
-        Даты и время показываются в привычном виде, хотя внутри хранятся в
-        ISO-формате.
-        """
+        return _display(self.field, self.value)
 
-        if self.is_empty:
-            return "—"
+    def display_previous(self) -> str:
+        """Значение из предыдущей проверки в виде строки."""
 
-        if isinstance(self.value, bool):
-            return "Да" if self.value else "Нет"
-
-        text = str(self.value)
-
-        if self.field.type in (FieldType.DATE, FieldType.TIME):
-            return _humanize_temporal(self.field.type, text)
-
-        return text
+        return _display(self.field, self.previous_value)
 
     @property
     def has_previous(self) -> bool:
@@ -144,3 +134,24 @@ def _coerce(field: Field, value: object) -> object | None:
         return bool(value)
 
     return str(value)
+
+
+def _display(field: Field, value: object | None) -> str:
+    """Значение поля в виде строки.
+
+    Даты и время показываются в привычном виде, хотя внутри хранятся в
+    ISO-формате.
+    """
+
+    if value is None or str(value).strip() == "":
+        return "—"
+
+    if isinstance(value, bool):
+        return "Да" if value else "Нет"
+
+    text = str(value)
+
+    if field.type in (FieldType.DATE, FieldType.TIME):
+        return _humanize_temporal(field.type, text)
+
+    return text

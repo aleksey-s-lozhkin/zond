@@ -26,6 +26,7 @@ from zond.ui.colors import AppColors
 from zond.ui.components.dialogs import show_choice, show_confirm, show_error, show_info
 from zond.ui.screens.base_screen import AppScreen
 from zond.ui.screens.check_screen import CheckScreen
+from zond.ui.screens.defects_screen import DefectsScreen
 from zond.ui.screens.finish_screen import FinishScreen
 from zond.ui.screens.help_screen import HelpScreen
 from zond.ui.screens.history_screen import HistoryScreen
@@ -445,8 +446,17 @@ class ZondApp:
 
     # ----------------------------------------------------------- сценарий
 
-    def start_inspection(self, object_name: str, executor: str) -> None:
-        """Создать проверку по текущему шаблону и открыть форму."""
+    def start_inspection(
+        self,
+        object_name: str,
+        executor: str,
+        previous: Inspection | None = None,
+    ) -> None:
+        """Создать проверку по текущему шаблону и открыть форму.
+
+        Если передана прошлая проверка, значения переносятся, а прежние
+        замечания выносятся на отдельный шаг разбора.
+        """
 
         template = self.state.template
 
@@ -454,11 +464,73 @@ class ZondApp:
             show_error(self.page, "Шаблон не загружен", "Сначала выберите CSV-шаблон.")
             return
 
-        inspection = InspectionFactory.create(template, object_name, executor)
+        if previous is None:
+            inspection = InspectionFactory.create(template, object_name, executor)
+        else:
+            inspection = InspectionFactory.repeat(
+                previous,
+                template,
+                object_name,
+                executor,
+            )
+
         self._prefill_metadata(inspection)
 
         self.state.set_inspection(inspection)
         self.state.mark_modified()
+        self.save_draft()
+
+        if inspection.pending_resolutions:
+            self.navigator.push(DefectsScreen(self))
+            return
+
+        self.navigator.push(InspectionScreen(self))
+
+    async def share_template(self) -> None:
+        """Отправить загруженный шаблон другому человеку.
+
+        Шаблон — обычный CSV-файл, поэтому используется тот же механизм, что
+        и для протоколов: на телефоне открывается системное меню отправки.
+        """
+
+        template = self.state.template
+
+        if template is None:
+            show_error(self.page, "Шаблон не загружен", "Сначала выберите CSV-шаблон.")
+            return
+
+        if not template.source_path:
+            show_error(
+                self.page,
+                "Файл шаблона недоступен",
+                "Шаблон загружен из файла, которого больше нет на устройстве.",
+            )
+            return
+
+        await self.open_path(template.source_path)
+
+    def repeat_candidates(self) -> list[Inspection]:
+        """Завершённые проверки по текущему шаблону, начиная с последней.
+
+        Черновики в список не попадают: переносить значения имеет смысл с
+        завершённого выезда, а незаконченную проверку продолжают другим
+        способом.
+        """
+
+        template = self.state.template
+
+        if template is None:
+            return []
+
+        return [
+            entry.inspection
+            for entry in self.storage.list_stored()
+            if not entry.is_draft and entry.inspection.template.name == template.name
+        ]
+
+    def finish_defect_review(self) -> None:
+        """Закончить разбор замечаний и перейти к форме."""
+
         self.save_draft()
         self.navigator.push(InspectionScreen(self))
 

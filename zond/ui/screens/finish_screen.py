@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import flet as ft
 
+from zond.app.platform import is_mobile
 from zond.models.inspection import format_datetime
 from zond.ui.colors import AppColors
 from zond.ui.components.buttons import GhostButton, PrimaryButton, SecondaryButton
@@ -111,7 +112,10 @@ class FinishScreen(AppScreen):
         if pdf_exists:
             buttons.append(
                 SecondaryButton(
-                    "Открыть PDF",
+                    # На телефоне система не открывает file:// другим
+                    # приложением: протокол уходит в меню «Поделиться».
+                    # Называть это «Открыть» — обещать не то.
+                    "Отправить PDF" if is_mobile(self.app.page) else "Открыть PDF",
                     icon=AppIcons.OPEN,
                     on_click=self._open_pdf,
                     expand=True,

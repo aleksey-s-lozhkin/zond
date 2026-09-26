@@ -6,8 +6,14 @@ from pathlib import Path
 
 import pytest
 
+from zond.models.verdict import NOT_RESOLVED, RESOLVED
 from zond.services.inspection_factory import InspectionFactory
-from zond.services.report_generator import FONT_REGULAR, ReportGenerator, _resolve_fonts
+from zond.services.report_generator import (
+    FONT_REGULAR,
+    ReportGenerator,
+    _resolution_style,
+    _resolve_fonts,
+)
 from zond.services.template_loader import TemplateLoader
 
 
@@ -153,3 +159,142 @@ def test_checkbox_and_long_values_do_not_break_report(
     target = generator.generate(inspection, tmp_path / "special.pdf")
 
     assert target.exists()
+
+
+# ------------------------------------------------------ повторная проверка
+
+
+def flowable_text(items) -> str:
+    """Собрать текст из элементов отчёта.
+
+    Проверять готовый PDF пришлось бы через внешнюю библиотеку разбора, а
+    проект её намеренно не тянет. Текст собирается из самих элементов, что
+    заодно показывает, попадёт ли он в документ.
+    """
+
+    parts: list[str] = []
+
+    for item in items:
+        if hasattr(item, "getPlainText"):
+            parts.append(item.getPlainText())
+        elif hasattr(item, "_cellvalues"):
+            parts.append(" ".join(flowable_text(row) for row in item._cellvalues))
+        elif hasattr(item, "_content"):
+            parts.append(flowable_text(item._content))
+
+    return " ".join(part for part in parts if part)
+
+
+def repeat_inspection(sample_template: Path):
+    """Проверка на основе прошлой: одно замечание закрыто, одно осталось."""
+
+    from zond.models.verdict import NOT_RESOLVED, RESOLVED
+
+    template = TemplateLoader().load(sample_template)
+
+    previous = InspectionFactory.create(template, "Насос Н-12", "Иванов И.И.")
+    previous.set_value("condition", "Требует ремонта")
+    previous.set_value("vibration", "Критическая")
+    previous.mark_finished()
+
+    repeated = InspectionFactory.repeat(previous, template)
+    repeated.get_item("condition").resolution = RESOLVED
+    repeated.get_item("vibration").resolution = NOT_RESOLVED
+    repeated.mark_finished()
+
+    return repeated
+
+
+def test_repeat_block_lists_previous_defects(
+    generator: ReportGenerator,
+    sample_template: Path,
+) -> None:
+    styles = generator._styles()
+    text = flowable_text(ReportGenerator._repeat_block(repeat_inspection(sample_template), styles))
+
+    assert "Замечания прошлой проверки" in text
+    assert "Требует ремонта" in text
+    assert "Критическая" in text
+    assert "Устранено" in text
+    assert "Не устранено" in text
+    assert "устранено 1" in text
+
+
+def test_repeat_block_is_absent_for_first_visit(
+    generator: ReportGenerator,
+    inspection,
+) -> None:
+    assert ReportGenerator._repeat_block(inspection, generator._styles()) == []
+
+
+def test_repeat_without_defects_has_no_block(
+    generator: ReportGenerator,
+    sample_template: Path,
+) -> None:
+    """Замечаний не было — отдельный блок не нужен."""
+
+    template = TemplateLoader().load(sample_template)
+    previous = InspectionFactory.create(template, "Насос Н-12", "Иванов И.И.")
+    previous.set_value("condition", "Хорошее")
+    previous.mark_finished()
+
+    repeated = InspectionFactory.repeat(previous, template)
+
+    assert repeated.previous_defects == []
+    assert ReportGenerator._repeat_block(repeated, generator._styles()) == []
+
+
+def test_summary_reports_repeat_progress(
+    generator: ReportGenerator,
+    sample_template: Path,
+) -> None:
+    """В сводке видно, сколько замечаний прошлого выезда закрыто."""
+
+    styles = generator._styles()
+    text = flowable_text(ReportGenerator._summary(repeat_inspection(sample_template), styles))
+
+    assert "Замечания прошлой проверки" in text
+    assert "устранено 1 из 2" in text
+
+
+def test_summary_says_when_there_were_no_defects(
+    generator: ReportGenerator,
+    sample_template: Path,
+) -> None:
+    template = TemplateLoader().load(sample_template)
+    previous = InspectionFactory.create(template, "Насос Н-12", "Иванов И.И.")
+    previous.set_value("condition", "Хорошее")
+    previous.mark_finished()
+
+    repeated = InspectionFactory.repeat(previous, template)
+    styles = generator._styles()
+    text = flowable_text(ReportGenerator._summary(repeated, styles))
+
+    assert "не выявлялись" in text
+
+
+@pytest.mark.parametrize(
+    ("resolution", "expected"),
+    [(RESOLVED, "valueOk"), (NOT_RESOLVED, "valueProblem"), ("", "cell")],
+)
+def test_resolution_style(resolution: str, expected: str) -> None:
+    """Состояние замечания подсвечивается: закрытое зелёным, оставшееся красным."""
+
+    _label, style = _resolution_style(resolution)
+
+    assert style == expected
+
+
+def test_repeat_report_is_rendered(
+    generator: ReportGenerator,
+    sample_template: Path,
+    tmp_path: Path,
+) -> None:
+    """Проверка на основе прошлой формирует протокол без сбоев."""
+
+    target = tmp_path / "repeat.pdf"
+
+    generator.generate(repeat_inspection(sample_template), target)
+
+    assert target.read_bytes()[:5] == b"%PDF-"
+    assert target.stat().st_size > 5000
