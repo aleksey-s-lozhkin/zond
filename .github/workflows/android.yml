@@ -51,7 +51,27 @@ jobs:
       # Flutter для сборки flet скачивает сам: ему нужна своя версия, и та,
       # что стоит на машине разработчика, может не подойти. Первая сборка из-за
       # этого долгая — это ожидаемо.
+      #
+      # Ключ подписи берётся из секретов. Без своего ключа сборка подписывается
+      # отладочным, который на каждом запуске новый, и такая версия не
+      # установится поверх прежней: Android отвечает «signatures do not match».
+      - name: Подготовка ключа подписи
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "::warning::Секрет ANDROID_KEYSTORE_BASE64 не задан. APK будет подписан отладочным ключом и не установится поверх прежней версии."
+            exit 0
+          fi
+
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/zond-upload.jks"
+          echo "FLET_ANDROID_SIGNING_KEY_STORE=$RUNNER_TEMP/zond-upload.jks" >> "$GITHUB_ENV"
+
       - name: Сборка APK
+        env:
+          FLET_ANDROID_SIGNING_KEY_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          FLET_ANDROID_SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          FLET_ANDROID_SIGNING_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
         run: flet build apk --yes
 
       - name: Размер файла

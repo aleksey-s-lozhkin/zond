@@ -74,3 +74,8 @@ reports/*
 # ==========================
 *.db
 *.sqlite3
+
+# Ключи подписи Android
+*.jks
+*.keystore
+zond-signing/
