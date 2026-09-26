@@ -18,7 +18,7 @@ from zond.ui.screens.base_screen import AppScreen
 REPEAT_NONE = ""
 
 #: Сколько символов названия объекта показывать в списке прошлых проверок.
-OBJECT_PREVIEW = 34
+OBJECT_PREVIEW = 24
 
 
 def _candidate_label(inspection) -> str:
@@ -152,6 +152,7 @@ class CheckScreen(AppScreen):
                     "Шаблон загружен",
                     description=template.name,
                     on_back=self._go_back,
+                    actions=[self._share_button()],
                 ),
                 ScreenBody(*cards, top=Space.XS),
                 ActionBar(
@@ -161,15 +162,23 @@ class CheckScreen(AppScreen):
                         on_click=self._go_back,
                         expand=True,
                     ),
-                    SecondaryButton(
-                        "Отправить шаблон",
-                        icon=AppIcons.SHARE,
-                        on_click=self._share,
-                        expand=True,
-                    ),
                     self._start_button(),
                 ),
             ],
+        )
+
+    def _share_button(self) -> ft.Control:
+        """Отправка шаблона: второстепенное действие, поэтому в шапке.
+
+        В нижней панели три кнопки не помещаются на телефонной ширине, и
+        подписи переносятся посередине слов.
+        """
+
+        return ft.IconButton(
+            icon=AppIcons.SHARE,
+            icon_color=AppColors.TEXT,
+            tooltip="Отправить шаблон",
+            on_click=self._share,
         )
 
     def _start_button(self) -> PrimaryButton:
@@ -196,12 +205,12 @@ class CheckScreen(AppScreen):
         if not candidates:
             return None
 
-        options: list[ft.Control] = [ft.Radio(value=REPEAT_NONE, label="Начать с пустой формы")]
+        options: list[ft.Control] = [self._repeat_row(REPEAT_NONE, "Начать с пустой формы")]
 
         for inspection in candidates:
             key = inspection.inspection_id
             self.repeat_choices[key] = inspection
-            options.append(ft.Radio(value=key, label=_candidate_label(inspection)))
+            options.append(self._repeat_row(key, _candidate_label(inspection)))
 
         self.repeat_group = ft.RadioGroup(
             value=REPEAT_NONE,
@@ -220,6 +229,46 @@ class CheckScreen(AppScreen):
             subtitle=subtitle,
             icon=AppIcons.HISTORY,
         )
+
+    def _repeat_row(self, value: str, label: str) -> ft.Control:
+        """Строка выбора прошлой проверки.
+
+        Подпись радиокнопки не переносится и обрезается по краю экрана,
+        поэтому текст вынесен отдельным контролом, а нажатие ловит вся
+        строка целиком.
+        """
+
+        return ft.Container(
+            padding=ft.Padding(left=0, top=Space.XS, right=Space.SM, bottom=Space.XS),
+            border_radius=8,
+            on_click=lambda event, key=value: self._select_repeat(key),
+            content=ft.Row(
+                spacing=Space.XS,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                controls=[
+                    ft.Radio(value=value, label=""),
+                    ft.Text(label, size=FontSize.BODY, color=AppColors.TEXT, expand=True),
+                ],
+            ),
+        )
+
+    def repeat_options(self) -> list[tuple[str, str]]:
+        """Варианты выбора прошлой проверки: значение и подпись."""
+
+        if self.repeat_group is None:
+            return []
+
+        return [
+            (row.content.controls[0].value, row.content.controls[1].value)
+            for row in self.repeat_group.content.controls
+        ]
+
+    def _select_repeat(self, value: str) -> None:
+        if self.repeat_group is None:
+            return
+
+        self.repeat_group.value = value
+        self._choose_repeat(None)
 
     # ------------------------------------------------------------- обработчики
 

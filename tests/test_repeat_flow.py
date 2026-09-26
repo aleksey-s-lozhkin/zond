@@ -22,18 +22,13 @@ from zond.ui.screens.inspection_screen import InspectionScreen
 
 
 def radio_labels(screen) -> list[str]:
-    """Подписи радиокнопок выбора прошлой проверки.
+    """Подписи строк выбора прошлой проверки.
 
-    :class:`flet.Radio` хранит подпись строкой, а не контролом
-    :class:`flet.Text`, поэтому общий обход текстов их не видит.
+    Обычный обход текстов их не видит: строка собирается из радиокнопки без
+    подписи и отдельного текста, поэтому экран отдаёт варианты сам.
     """
 
-    group = screen.repeat_group
-
-    if group is None:
-        return []
-
-    return [str(option.label) for option in group.content.controls]
+    return [label for _value, label in screen.repeat_options()]
 
 
 def load_template(app: ZondApp, path: Path, choose_file) -> None:

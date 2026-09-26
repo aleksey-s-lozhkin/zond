@@ -10,6 +10,8 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 
+import flet as ft
+
 from tests.helpers import collect_texts, complete_inspection
 from zond.app.app import ZondApp
 from zond.ui.screens.upload_screen import UploadScreen
@@ -87,11 +89,34 @@ def test_start_screen_has_share_button(
     sample_template: Path,
     choose_file,
 ) -> None:
+    """Отправка шаблона — второстепенное действие, поэтому в шапке."""
+
     load_template(app, sample_template, choose_file)
 
-    labels = collect_texts(app.navigator.current.content)
+    tooltips = [button.tooltip for button in icon_buttons(app.navigator.current)]
 
-    assert "Отправить шаблон" in labels
+    assert "Отправить шаблон" in tooltips
+
+
+def icon_buttons(control) -> list[ft.IconButton]:
+    """Все кнопки-иконки в дереве: в шапке их две — назад и отправить."""
+
+    found: list[ft.IconButton] = []
+
+    if isinstance(control, ft.IconButton):
+        found.append(control)
+
+    for attribute in ("content", "controls", "actions"):
+        children = getattr(control, attribute, None)
+
+        if isinstance(children, ft.Control):
+            found.extend(icon_buttons(children))
+        elif isinstance(children, (list, tuple)):
+            for child in children:
+                if isinstance(child, ft.Control):
+                    found.extend(icon_buttons(child))
+
+    return found
 
 
 def test_report_button_says_send_on_mobile(

@@ -43,10 +43,13 @@ class SectionCard(ft.Container):
                     size=FontSize.SUBTITLE,
                     weight=ft.FontWeight.W_600,
                     color=AppColors.TEXT,
+                    # Заголовок растягивается и переносится: без этого длинные
+                    # подписи полей обрезаются по правому краю экрана.
+                    expand=True,
                 )
             )
 
-            content.append(ft.Row(controls=header, spacing=Space.SM, tight=True))
+            content.append(ft.Row(controls=header, spacing=Space.SM))
 
         if subtitle:
             content.append(ft.Text(subtitle, size=FontSize.CAPTION, color=AppColors.TEXT_SECONDARY))
