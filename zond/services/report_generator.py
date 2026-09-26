@@ -30,6 +30,7 @@ from reportlab.platypus import (
 )
 
 from zond.models.inspection import Inspection, format_datetime
+from zond.models.verdict import Verdict, classify
 from zond.services.errors import ReportError
 
 logger = logging.getLogger(__name__)
@@ -59,6 +60,10 @@ ACCENT = colors.HexColor("#2563EB")
 MUTED = colors.HexColor("#6B7280")
 BORDER = colors.HexColor("#D1D5DB")
 ALERT = colors.HexColor("#DC2626")
+
+#: Цвета оценки: соответствие и несоответствие.
+OK_COLOR = colors.HexColor("#15803D")
+PROBLEM_COLOR = colors.HexColor("#DC2626")
 
 
 class ReportGenerator:
@@ -170,6 +175,34 @@ class ReportGenerator:
                 fontSize=9.5,
                 leading=13,
             ),
+            "cellOk": ParagraphStyle(
+                "cellOk",
+                fontName=self.regular_font,
+                fontSize=9,
+                leading=12,
+                textColor=OK_COLOR,
+            ),
+            "cellProblem": ParagraphStyle(
+                "cellProblem",
+                fontName=self.bold_font,
+                fontSize=9,
+                leading=12,
+                textColor=PROBLEM_COLOR,
+            ),
+            "valueOk": ParagraphStyle(
+                "valueOk",
+                fontName=self.bold_font,
+                fontSize=9.5,
+                leading=13,
+                textColor=OK_COLOR,
+            ),
+            "valueProblem": ParagraphStyle(
+                "valueProblem",
+                fontName=self.bold_font,
+                fontSize=9.5,
+                leading=13,
+                textColor=PROBLEM_COLOR,
+            ),
         }
 
     # ------------------------------------------------------------- блоки
@@ -187,22 +220,36 @@ class ReportGenerator:
 
     @staticmethod
     def _summary(inspection: Inspection, styles: dict) -> list:
+        problems = inspection.problems
+        conformities = inspection.conformities
+
+        # (подпись, значение, стиль значения)
         rows = [
-            ("Объект", inspection.object_name or "—"),
-            ("Исполнитель", inspection.executor or "—"),
-            ("Начало проверки", format_datetime(inspection.started_at)),
-            ("Завершение", format_datetime(inspection.finished_at)),
-            ("Заполнено полей", f"{inspection.answered_count} из {inspection.total_items}"),
-            ("Идентификатор", inspection.inspection_id),
+            ("Объект", inspection.object_name or "—", "cell"),
+            ("Исполнитель", inspection.executor or "—", "cell"),
+            ("Начало проверки", format_datetime(inspection.started_at), "cell"),
+            ("Завершение", format_datetime(inspection.finished_at), "cell"),
+            ("Заполнено полей", f"{inspection.answered_count} из {inspection.total_items}", "cell"),
+            (
+                "Соответствий",
+                str(len(conformities)),
+                "valueOk" if conformities else "cell",
+            ),
+            (
+                "Несоответствий",
+                str(len(problems)),
+                "valueProblem" if problems else "cell",
+            ),
+            ("Идентификатор", inspection.inspection_id, "cell"),
         ]
 
         table = Table(
             [
                 [
                     Paragraph(escape(name), styles["cellBold"]),
-                    Paragraph(escape(str(value)), styles["cell"]),
+                    Paragraph(escape(str(value)), styles[style]),
                 ]
-                for name, value in rows
+                for name, value, style in rows
             ],
             colWidths=[45 * mm, None],
             hAlign="LEFT",
@@ -220,6 +267,8 @@ class ReportGenerator:
 
         story: list = [table, Spacer(1, 10)]
 
+        story.extend(ReportGenerator._problem_block(inspection, styles))
+
         missing = inspection.missing_required
 
         if missing:
@@ -234,6 +283,67 @@ class ReportGenerator:
             story.append(Spacer(1, 8))
 
         return story
+
+    @staticmethod
+    def _problem_block(inspection: Inspection, styles: dict) -> list:
+        """Перечень выявленных несоответствий отдельным блоком.
+
+        В таблицах по группам несоответствия выделены цветом, но их нужно
+        ещё и найти среди сотни строк, поэтому они собраны в начале отчёта.
+        """
+
+        problems = inspection.problems
+
+        if not problems:
+            return [
+                Paragraph(
+                    "Несоответствий требованиям не выявлено.",
+                    styles["valueOk"],
+                ),
+                Spacer(1, 10),
+            ]
+
+        rows = [
+            [
+                Paragraph("Шаг проверки", styles["cellBold"]),
+                Paragraph("Поле", styles["cellBold"]),
+                Paragraph("Ответ", styles["cellBold"]),
+            ]
+        ]
+
+        for item in problems:
+            rows.append(
+                [
+                    Paragraph(escape(item.field.group), styles["cell"]),
+                    Paragraph(escape(item.field.title), styles["cell"]),
+                    Paragraph(escape(item.display_value()), styles["cellProblem"]),
+                ]
+            )
+
+        table = Table(
+            rows,
+            colWidths=[42 * mm, None, 40 * mm],
+            hAlign="LEFT",
+            repeatRows=1,
+        )
+        table.setStyle(
+            TableStyle(
+                [
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#FEF2F2")),
+                    ("LINEBELOW", (0, 0), (-1, 0), 0.5, PROBLEM_COLOR),
+                    ("INNERGRID", (0, 1), (-1, -1), 0.2, BORDER),
+                    ("TOPPADDING", (0, 0), (-1, -1), 4),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ]
+            )
+        )
+
+        return [
+            Paragraph(f"Выявленные несоответствия: {len(problems)}", styles["group"]),
+            table,
+            Spacer(1, 12),
+        ]
 
     @staticmethod
     def _groups(inspection: Inspection, styles: dict) -> list:
@@ -260,7 +370,7 @@ class ReportGenerator:
 
             for item in items:
                 marker = " *" if item.field.required else ""
-                value_style = "cellMuted" if item.is_empty else "cell"
+                value_style = _value_style(item)
 
                 row = [
                     Paragraph(f"{escape(item.field.title)}{marker}", styles["cell"]),
@@ -298,7 +408,14 @@ class ReportGenerator:
             story.append(KeepTogether([Paragraph(escape(group), styles["group"]), table]))
             story.append(Spacer(1, 8))
 
-        story.append(Paragraph("* — обязательное для заполнения поле.", styles["cellMuted"]))
+        story.append(
+            Paragraph(
+                "* — обязательное для заполнения поле. "
+                "Зелёным выделены ответы «соответствует», "
+                "красным — выявленные несоответствия.",
+                styles["cellMuted"],
+            )
+        )
         story.append(Spacer(1, 12))
 
         return story
@@ -329,6 +446,23 @@ class ReportGenerator:
             datetime.now().strftime("сформирован %d.%m.%Y %H:%M"),
         )
         canvas.restoreState()
+
+
+def _value_style(item) -> str:
+    """Стиль ячейки значения: цвет зависит от оценки ответа."""
+
+    if item.is_empty:
+        return "cellMuted"
+
+    verdict = classify(item.value)
+
+    if verdict is Verdict.OK:
+        return "cellOk"
+
+    if verdict is Verdict.PROBLEM:
+        return "cellProblem"
+
+    return "cell"
 
 
 def _column_widths(has_unit: bool, has_comment: bool) -> list[float]:

@@ -44,6 +44,17 @@ class FinishScreen(AppScreen):
                     f"{inspection.answered_count} из {inspection.total_items}",
                     emphasize=True,
                 ),
+                InfoRow(
+                    "Соответствий",
+                    str(len(inspection.conformities)),
+                    value_color=AppColors.SUCCESS,
+                ),
+                InfoRow(
+                    "Несоответствий",
+                    str(len(inspection.problems)),
+                    value_color=AppColors.ERROR if inspection.problems else AppColors.SUCCESS,
+                    emphasize=bool(inspection.problems),
+                ),
                 title="Итоги проверки",
                 icon=AppIcons.SUCCESS,
             )

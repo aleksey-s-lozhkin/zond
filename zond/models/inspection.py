@@ -8,6 +8,7 @@ from uuid import uuid4
 
 from zond.models.inspection_item import InspectionItem
 from zond.models.template import Template
+from zond.models.verdict import Verdict, classify
 from zond.services.errors import StorageError
 
 #: Текущая версия формата файла проверки.
@@ -129,6 +130,40 @@ class Inspection:
     @property
     def is_finished(self) -> bool:
         return self.finished_at is not None
+
+    # ------------------------------------------------------- оценка ответов
+
+    @property
+    def problems(self) -> list[InspectionItem]:
+        """Заполненные поля, ответ по которым означает несоответствие."""
+
+        return [
+            item
+            for item in self.items
+            if not item.is_empty and classify(item.value) is Verdict.PROBLEM
+        ]
+
+    @property
+    def conformities(self) -> list[InspectionItem]:
+        """Заполненные поля с ответом «соответствует»."""
+
+        return [
+            item for item in self.items if not item.is_empty and classify(item.value) is Verdict.OK
+        ]
+
+    @property
+    def problems_by_group(self) -> dict[str, list[InspectionItem]]:
+        """Несоответствия, сгруппированные по шагам проверки."""
+
+        grouped: dict[str, list[InspectionItem]] = {}
+
+        for item in self.problems:
+            grouped.setdefault(item.field.group, []).append(item)
+
+        return grouped
+
+    def problems_in_group(self, group: str) -> list[InspectionItem]:
+        return [item for item in self.problems if item.field.group == group]
 
     @property
     def title(self) -> str:
