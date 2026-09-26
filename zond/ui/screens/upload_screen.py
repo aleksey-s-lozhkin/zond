@@ -13,6 +13,20 @@ from zond.ui.screens.base_screen import AppScreen
 
 VERSION = "1.0.0"
 
+#: Сколько символов пути показывать на стартовом экране.
+PATH_PREVIEW_LENGTH = 46
+
+
+def _shorten(path) -> str:
+    """Сократить длинный путь для подписи, сохранив его конец."""
+
+    text = str(path)
+
+    if len(text) <= PATH_PREVIEW_LENGTH:
+        return text
+
+    return "…" + text[-(PATH_PREVIEW_LENGTH - 1) :]
+
 
 class UploadScreen(AppScreen):
     """Экран запуска приложения."""
@@ -93,10 +107,30 @@ class UploadScreen(AppScreen):
             controls=[
                 ft.Container(content=content, expand=True, alignment=ft.Alignment(0, 0)),
                 ft.Container(
-                    content=ft.Text(
-                        f"Версия {VERSION}",
-                        size=FontSize.CAPTION,
-                        color=AppColors.TEXT_SECONDARY,
+                    content=ft.Column(
+                        spacing=2,
+                        tight=True,
+                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                        controls=[
+                            ft.Text(
+                                "Проверки сохраняются в:",
+                                size=FontSize.CAPTION,
+                                color=AppColors.TEXT_SECONDARY,
+                            ),
+                            ft.Text(
+                                _shorten(self.app.storage.root),
+                                size=FontSize.CAPTION,
+                                color=AppColors.TEXT_SECONDARY,
+                                tooltip=str(self.app.storage.root),
+                                text_align=ft.TextAlign.CENTER,
+                            ),
+                            ft.Container(height=Space.XS),
+                            ft.Text(
+                                f"Версия {VERSION}",
+                                size=FontSize.CAPTION,
+                                color=AppColors.TEXT_SECONDARY,
+                            ),
+                        ],
                     ),
                     padding=ft.Padding(left=0, top=0, right=0, bottom=Space.MD),
                     alignment=ft.Alignment(0, 1),

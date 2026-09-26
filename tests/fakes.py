@@ -44,6 +44,7 @@ class FakePage:
 
         self.dialogs: list = []
         self.updates = 0
+        self.tasks: list[tuple] = []
 
     # ----------------------------------------------------- управление деревом
 
@@ -55,6 +56,14 @@ class FakePage:
 
     def update(self, *controls) -> None:
         self.updates += 1
+
+    # ------------------------------------------------------------- задания
+
+    def run_task(self, handler, *args, **kwargs):
+        """Запомнить корутину, отправленную задачей страницы."""
+
+        self.tasks.append((handler, args, kwargs))
+        return
 
     # --------------------------------------------------------------- диалоги
 
@@ -96,15 +105,26 @@ class FakeUrlLauncher:
 class FakeStoragePaths:
     """Заглушка :class:`flet.StoragePaths`."""
 
-    def __init__(self, documents: Path | None = None) -> None:
+    def __init__(
+        self,
+        documents: Path | None = None,
+        external: Path | None = None,
+    ) -> None:
         self.documents = documents
+        self.external = external
         self.available = True
 
-    async def get_application_documents_directory(self) -> str | None:
+    def _resolve(self, value: Path | None) -> str | None:
         if not self.available:
             raise RuntimeError("платформа недоступна")
 
-        return None if self.documents is None else str(self.documents)
+        return None if value is None else str(value)
+
+    async def get_application_documents_directory(self) -> str | None:
+        return self._resolve(self.documents)
+
+    async def get_external_storage_directory(self) -> str | None:
+        return self._resolve(self.external)
 
 
 class FakeShare:

@@ -14,7 +14,13 @@ from pathlib import Path
 import flet as ft
 import pytest
 
-from tests.fakes import FakePage, FakeStoragePaths
+from tests.conftest import PROJECT_ROOT
+from tests.fakes import (
+    FakePage,
+    FakeShare,
+    FakeStoragePaths,
+    FakeUrlLauncher,
+)
 from tests.helpers import collect_texts
 from zond.app.app import ZondApp
 from zond.app.platform import has_local_files, is_desktop, is_mobile
@@ -106,6 +112,59 @@ def test_prepare_moves_data_to_documents_on_mobile(
     mobile_app.storage.ensure_dirs()
 
     assert mobile_app.storage.inspections_dir.is_dir()
+
+
+def test_android_prefers_visible_external_storage(
+    mobile_app: ZondApp,
+    tmp_path: Path,
+) -> None:
+    """Внутренний каталог документов недоступен пользователю, внешний — виден
+    по USB и в файловых менеджерах, поэтому на Android он в приоритете."""
+
+    mobile_app.storage_paths = FakeStoragePaths(
+        documents=tmp_path / "documents",
+        external=tmp_path / "external",
+    )
+
+    asyncio.run(mobile_app.prepare())
+
+    assert mobile_app.storage.root == tmp_path / "external" / "reports"
+
+
+def test_android_falls_back_to_documents_when_external_missing(
+    mobile_app: ZondApp,
+    tmp_path: Path,
+) -> None:
+    mobile_app.storage_paths = FakeStoragePaths(
+        documents=tmp_path / "documents",
+        external=None,
+    )
+
+    asyncio.run(mobile_app.prepare())
+
+    assert mobile_app.storage.root == tmp_path / "documents" / "reports"
+
+
+def test_ios_does_not_use_external_storage(
+    mobile_page: FakePage,
+    storage: JsonStorage,
+    tmp_path: Path,
+) -> None:
+    """На iOS внешнего каталога приложения не существует."""
+
+    mobile_page.platform = ft.PagePlatform.IOS
+
+    application = ZondApp(mobile_page, storage=storage)
+    application.url_launcher = FakeUrlLauncher()
+    application.storage_paths = FakeStoragePaths(
+        documents=tmp_path / "documents",
+        external=tmp_path / "external",
+    )
+    application.share = FakeShare()
+
+    asyncio.run(application.prepare())
+
+    assert application.storage.root == tmp_path / "documents" / "reports"
 
 
 def test_prepare_keeps_storage_on_desktop(app: ZondApp, storage: JsonStorage) -> None:
@@ -265,8 +324,31 @@ def test_samples_directory_is_found() -> None:
 
 def test_sample_titles_and_subtitles() -> None:
     for path in available_samples():
+        subtitle = sample_subtitle(path)
+
         assert sample_title(path)
-        assert "полей" in sample_subtitle(path)
+        assert path.name in subtitle
+        assert "групп" in subtitle
+
+
+@pytest.mark.parametrize(
+    ("count", "expected"),
+    [
+        (1, "поле"),
+        (2, "поля"),
+        (5, "полей"),
+        (11, "полей"),
+        (12, "полей"),
+        (21, "поле"),
+        (22, "поля"),
+    ],
+)
+def test_plural_forms(count: int, expected: str) -> None:
+    """Русские формы числа: 1 поле, 2 поля, 5 полей, 11 полей, 21 поле."""
+
+    from zond.services.sample_templates import _plural
+
+    assert _plural(count, "поле", "поля", "полей") == expected
 
 
 def test_unknown_sample_gets_file_name_as_title(tmp_path: Path) -> None:
@@ -317,11 +399,71 @@ def test_screens_use_safe_area(app: ZondApp) -> None:
     assert screen.content.expand is True
 
 
-def test_main_entry_point_is_async() -> None:
-    """flet build вызывает main(page) из модуля main."""
+def test_build_entry_point_starts_the_app() -> None:
+    """Модуль ``main`` обязан запускать приложение сам.
+
+    Загрузчик собранного приложения импортирует модуль и не вызывает
+    ``main(page)``. Если модуль только объявит функцию, приложение стартует и
+    сразу завершится — штатно, без сообщений об ошибке. Именно так выглядел
+    первый запуск на Android, поэтому проверка важна.
+
+    Импортировать модуль в тесте нельзя: он запускает приложение. Поэтому
+    проверяется его исходный текст.
+    """
+
+    source = (PROJECT_ROOT / "main.py").read_text(encoding="utf-8")
+
+    assert "from zond.ects import run" in source
+    assert "\nrun()" in source
+
+
+def test_run_is_a_synchronous_entry_point() -> None:
+    """``run`` — обычная функция: её вызывает и консоль, и модуль main."""
 
     import inspect
 
-    import main as entry_point
+    from zond.ects import run
 
-    assert inspect.iscoroutinefunction(entry_point.main)
+    assert not inspect.iscoroutinefunction(run)
+
+
+def test_main_builds_ui_and_schedules_storage_refresh() -> None:
+    """Интерфейс строится синхронно, а каталог данных уточняется задачей.
+
+    Пустая страница к концу main(page) приводила к тому, что приложение
+    закрывалось сразу после запуска.
+    """
+
+    from tests.fakes import FakePage
+    from zond.ects import main as ects_main
+
+    page = FakePage()
+    page.tasks.clear()
+
+    ects_main(page)
+
+    assert page.controls, "стартовый экран должен быть добавлен синхронно"
+    assert len(page.tasks) == 1
+    assert page.tasks[0][0].__name__ == "prepare"
+
+
+def test_prepare_refreshes_screen_when_storage_changes(
+    mobile_app: ZondApp,
+    tmp_path: Path,
+) -> None:
+    """После смены каталога экран перерисовывается: на нём показан путь."""
+
+    from tests.fakes import FakeStoragePaths
+
+    mobile_app.storage_paths = FakeStoragePaths(
+        documents=tmp_path / "documents",
+        external=tmp_path / "external",
+    )
+    mobile_app.start()
+
+    before = mobile_app.navigator.current
+
+    asyncio.run(mobile_app.prepare())
+
+    assert mobile_app.navigator.current is not before
+    assert mobile_app.storage.root == tmp_path / "external" / "reports"

@@ -51,6 +51,18 @@ def available_samples() -> list[Path]:
     return sorted(directory.glob("*.csv"))
 
 
+def _plural(count: int, one: str, few: str, many: str) -> str:
+    """Выбрать форму существительного по числу."""
+
+    if count % 10 == 1 and count % 100 != 11:
+        return one
+
+    if count % 10 in (2, 3, 4) and count % 100 not in (12, 13, 14):
+        return few
+
+    return many
+
+
 def sample_title(path: Path) -> str:
     """Понятное название образца для интерфейса."""
 
@@ -68,4 +80,10 @@ def sample_subtitle(path: Path) -> str:
         logger.exception("Не удалось прочитать образец %s", path)
         return path.name
 
-    return f"{len(template.fields)} полей · {template.total_groups} групп · {path.name}"
+    fields = len(template.fields)
+    groups = template.total_groups
+
+    return (
+        f"{fields} {_plural(fields, 'поле', 'поля', 'полей')} · "
+        f"{groups} {_plural(groups, 'группа', 'группы', 'групп')} · {path.name}"
+    )

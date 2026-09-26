@@ -20,6 +20,9 @@ MOBILE_PLATFORMS = frozenset(
     }
 )
 
+#: Платформы Android: внешний каталог приложения виден пользователю.
+ANDROID_PLATFORMS = frozenset({ft.PagePlatform.ANDROID, ft.PagePlatform.ANDROID_TV})
+
 #: Настольные платформы, где доступны окно и локальные файлы.
 DESKTOP_PLATFORMS = frozenset(
     {
@@ -40,6 +43,12 @@ def is_mobile(page: ft.Page) -> bool:
     """Работает ли приложение на мобильной платформе."""
 
     return _platform_of(page) in MOBILE_PLATFORMS
+
+
+def is_android(page: ft.Page) -> bool:
+    """Работает ли приложение на Android."""
+
+    return _platform_of(page) in ANDROID_PLATFORMS
 
 
 def is_desktop(page: ft.Page) -> bool:

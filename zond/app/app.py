@@ -9,7 +9,7 @@ from uuid import uuid4
 import flet as ft
 
 from zond.app.navigator import ZondNavigator
-from zond.app.platform import has_local_files, is_desktop, is_mobile
+from zond.app.platform import has_local_files, is_android, is_desktop, is_mobile
 from zond.app.state import ZondState
 from zond.models.inspection import Inspection
 from zond.services.errors import ReportError, StorageError, TemplateParseError, ZondError
@@ -106,11 +106,15 @@ class ZondApp:
         window.min_height = 600
 
     async def prepare(self) -> None:
-        """Учесть особенности платформы до показа интерфейса.
+        """Уточнить каталог данных под текущую платформу.
 
         На мобильных платформах каталог рядом с приложением доступен только
-        для чтения, поэтому данные проверок переносятся в каталог документов
-        приложения. Без этого не сохранился бы даже черновик.
+        для чтения, поэтому данные проверок переносятся в доступный каталог:
+        без этого не сохранился бы даже черновик.
+
+        Вызывается после показа стартового экрана: интерфейс строится
+        синхронно, а каталог запрашивается у системы асинхронно. Если он
+        изменился, экран перерисовывается, чтобы путь на нём был верным.
         """
 
         if not is_mobile(self.page):
@@ -118,25 +122,48 @@ class ZondApp:
 
         root = await self._mobile_data_dir()
 
-        if root is not None:
-            self.storage = JsonStorage(root)
+        if root is None or root == self.storage.root:
+            return
 
-        logger.info("Каталог данных: %s", self.storage.root)
+        self.storage = JsonStorage(root)
+        logger.info("Каталог данных для мобильной платформы: %s", root)
+
+        if self.navigator.current is not None:
+            self.restart()
 
     async def _mobile_data_dir(self) -> Path | None:
-        """Каталог документов приложения для хранения проверок."""
+        """Каталог для данных проверок на мобильной платформе.
 
-        try:
-            documents = await self.storage_paths.get_application_documents_directory()
-        except Exception:
-            logger.exception("Не удалось определить каталог документов приложения")
-            return None
+        На Android сначала пробуется внешний каталог приложения: он виден по
+        USB и в файловых менеджерах. Внутренний каталог документов доступен
+        только самому приложению, и забрать из него протокол можно лишь через
+        «Поделиться», поэтому он используется как запасной вариант.
+        """
 
-        if not documents:
-            logger.warning("Платформа не сообщила каталог документов приложения")
-            return None
+        for getter in self._mobile_dir_getters():
+            try:
+                raw = await getter()
+            except Exception:
+                logger.exception("Не удалось определить каталог данных")
+                continue
 
-        return Path(documents) / "reports"
+            if raw:
+                return Path(raw) / "reports"
+
+        logger.warning("Платформа не сообщила доступный каталог для данных")
+        return None
+
+    def _mobile_dir_getters(self) -> list:
+        """Каталоги-кандидаты в порядке предпочтения для текущей платформы."""
+
+        getters: list = []
+
+        if is_android(self.page):
+            getters.append(self.storage_paths.get_external_storage_directory)
+
+        getters.append(self.storage_paths.get_application_documents_directory)
+
+        return getters
 
     def start(self) -> None:
         """Показать стартовый экран."""
