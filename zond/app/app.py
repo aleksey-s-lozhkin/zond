@@ -54,6 +54,13 @@ PUBLIC_DOCUMENTS_DIR = Path("/storage/emulated/0/Documents")
 #: Подкаталог приложения в «Документах» для готовых протоколов.
 EXPORT_DIR_NAME = "ЗОНД"
 
+#: Сколько копий выбранных файлов хранить в рабочем каталоге.
+#:
+#: Копия нужна, чтобы отправить шаблон: путь к исходному файлу в памяти
+#: устройства после выбора недоступен. Но копить их бесконечно нельзя —
+#: каждая так и остаётся на диске навсегда.
+INCOMING_KEEP = 20
+
 #: Типы файлов для системного меню «Поделиться».
 MIME_TYPES = {
     ".pdf": "application/pdf",
@@ -355,8 +362,11 @@ class ZondApp:
 
         files = await self.file_picker.pick_files(
             dialog_title=title,
-            # Фильтр по расширениям поддерживают не все платформы.
-            allowed_extensions=extensions if local_paths else None,
+            # Фильтр по расширениям действует только при типе CUSTOM:
+            # с типом ANY Flet просто игнорирует allowed_extensions, и в
+            # диалоге видны все файлы подряд.
+            file_type=ft.FilePickerFileType.CUSTOM,
+            allowed_extensions=extensions,
             allow_multiple=False,
             with_data=not local_paths,
         )
@@ -395,6 +405,7 @@ class ZondApp:
             incoming.mkdir(parents=True, exist_ok=True)
             target = incoming / f"{uuid4().hex[:8]}_{Path(name).stem}{suffix}"
             target.write_bytes(selected.bytes)
+            self._prune_incoming(incoming)
         except OSError as error:
             logger.exception("Не удалось сохранить выбранный файл")
             show_error(self.page, "Не удалось прочитать файл", str(error))
@@ -643,6 +654,31 @@ class ZondApp:
                 "Не удалось открыть файл",
                 f"Файл сохранён по пути:\n{target}\n\n{error}",
             )
+
+    @staticmethod
+    def _prune_incoming(incoming: Path, keep: int = INCOMING_KEEP) -> None:
+        """Оставить только последние копии выбранных файлов.
+
+        Копии нужны для отправки шаблонов, но без ограничения они копятся
+        бесконечно и молча занимают место. Лишние удаляются по времени
+        изменения: самые свежие остаются.
+        """
+
+        try:
+            files = sorted(
+                (path for path in incoming.iterdir() if path.is_file()),
+                key=lambda path: path.stat().st_mtime,
+                reverse=True,
+            )
+        except OSError:
+            logger.exception("Не удалось прочитать каталог выбранных файлов")
+            return
+
+        for stale in files[keep:]:
+            try:
+                stale.unlink()
+            except OSError:
+                logger.warning("Не удалось удалить %s", stale)
 
     # ---------------------------------------------------------- навигация
 

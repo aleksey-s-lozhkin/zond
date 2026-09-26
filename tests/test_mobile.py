@@ -22,7 +22,7 @@ from tests.fakes import (
     FakeUrlLauncher,
 )
 from tests.helpers import choice_labels, choice_rows, click_row, collect_texts
-from zond.app.app import ZondApp
+from zond.app.app import INCOMING_KEEP, ZondApp
 from zond.app.platform import has_local_files, is_desktop, is_mobile
 from zond.services.json_storage import JsonStorage
 from zond.services.sample_templates import (
@@ -306,7 +306,7 @@ def test_mobile_pick_file_requests_content(mobile_app: ZondApp, tmp_path: Path) 
     path = asyncio.run(mobile_app._pick_file(["csv"], "Тест"))
 
     assert recorder["with_data"] is True
-    assert recorder["allowed_extensions"] is None
+    assert recorder["allowed_extensions"] == ["csv"]
     assert path is not None
     assert path.read_bytes() == payload
     assert path.parent == mobile_app.storage.root / "incoming"
@@ -339,6 +339,32 @@ def test_desktop_pick_file_uses_local_path(app: ZondApp, tmp_path: Path) -> None
     assert recorder["with_data"] is False
     assert recorder["allowed_extensions"] == ["csv"]
     assert path == target
+
+
+def test_file_filter_is_enabled(mobile_app: ZondApp) -> None:
+    """Расширения фильтруются только при типе CUSTOM.
+
+    С типом ANY Flet молча игнорирует allowed_extensions, и в диалоге видны
+    все файлы подряд — и JSON, и CSV. Ошибка была незаметна, потому что
+    фильтр просто не применялся ни на одной платформе.
+    """
+
+    recorder: dict = {}
+    mobile_app.file_picker.pick_files = picker_returning([], recorder)
+
+    asyncio.run(mobile_app._pick_file(["csv"], "Тест"))
+
+    assert recorder["file_type"] is ft.FilePickerFileType.CUSTOM
+    assert recorder["allowed_extensions"] == ["csv"]
+
+
+def test_inspection_picker_asks_for_json(mobile_app: ZondApp) -> None:
+    recorder: dict = {}
+    mobile_app.file_picker.pick_files = picker_returning([], recorder)
+
+    asyncio.run(mobile_app._pick_file(["json"], "Проверка"))
+
+    assert recorder["allowed_extensions"] == ["json"]
 
 
 def test_pick_file_without_content_reports_error(mobile_app: ZondApp) -> None:
@@ -678,3 +704,54 @@ def test_prepare_refreshes_screen_when_storage_changes(
 
     assert mobile_app.navigator.current is not before
     assert mobile_app.storage.root == tmp_path / "external" / "reports"
+
+
+# ------------------------------------------------- копии выбранных файлов
+
+
+def test_incoming_copies_are_bounded(mobile_app: ZondApp, tmp_path: Path) -> None:
+    """Копии выбранных файлов не копятся бесконечно.
+
+    Копия нужна, чтобы отправить шаблон: путь к исходному файлу после выбора
+    недоступен. Но без ограничения каждая копия остаётся на диске навсегда.
+    """
+
+    incoming = mobile_app.storage.root / "incoming"
+    incoming.mkdir(parents=True, exist_ok=True)
+
+    for index in range(INCOMING_KEEP + 5):
+        path = incoming / f"{index:04d}_шаблон.csv"
+        path.write_text("order;name;label;type\n", encoding="utf-8")
+
+    ZondApp._prune_incoming(incoming)
+
+    left = sorted(path.name for path in incoming.iterdir())
+
+    assert len(left) == INCOMING_KEEP
+    # Удаляются самые старые, свежие остаются.
+    assert "0000_шаблон.csv" not in left
+    assert f"{INCOMING_KEEP + 4:04d}_шаблон.csv" in left
+
+
+def test_pruning_survives_unreadable_directory(app: ZondApp, tmp_path: Path) -> None:
+    """Отсутствие каталога не должно ронять выбор файла."""
+
+    ZondApp._prune_incoming(tmp_path / "нет-такого")
+
+
+def test_picked_file_is_not_added_to_samples(mobile_app: ZondApp) -> None:
+    """Выбранный файл не становится примером.
+
+    Примеры лежат внутри приложения и не меняются: выбранный файл только
+    копируется в рабочий каталог и разбирается.
+    """
+
+    payload = Path("tests/data/sample.csv").read_bytes()
+    mobile_app.file_picker.pick_files = picker_returning([make_file("свой.csv", payload)], {})
+
+    path = asyncio.run(mobile_app._pick_file(["csv"], "Тест"))
+
+    assert path is not None
+    assert "incoming" in path.parts
+    assert path not in available_samples()
+    assert all(path.name != sample.name for sample in available_samples())
