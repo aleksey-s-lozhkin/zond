@@ -35,9 +35,14 @@ class AppScreen(ft.Container, ABC):
         self.mount()
 
     def mount(self) -> None:
-        """Собрать содержимое экрана."""
+        """Собрать содержимое экрана.
 
-        self.content = self.compose()
+        Содержимое оборачивается в :class:`flet.SafeArea`: на телефоне иначе
+        часть интерфейса уходит под системную строку состояния и «бровь».
+        На настольных платформах safe area ничего не меняет.
+        """
+
+        self.content = ft.SafeArea(content=self.compose(), expand=True)
 
     @abstractmethod
     def compose(self) -> ft.Control:

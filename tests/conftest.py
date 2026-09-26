@@ -5,6 +5,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import flet as ft
 import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -12,7 +13,13 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:  # pragma: no cover - зависит от запуска
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from tests.fakes import FakeFilePickerFile, FakePage, FakeUrlLauncher  # noqa: E402
+from tests.fakes import (  # noqa: E402
+    FakeFilePickerFile,
+    FakePage,
+    FakeShare,
+    FakeStoragePaths,
+    FakeUrlLauncher,
+)
 from zond.app.app import ZondApp  # noqa: E402
 from zond.services.json_storage import JsonStorage  # noqa: E402
 
@@ -33,8 +40,10 @@ def storage(tmp_path: Path) -> JsonStorage:
 def app(page: FakePage, storage: JsonStorage) -> ZondApp:
     application = ZondApp(page, storage=storage)
 
-    # Настоящий UrlLauncher требует живого сеанса Flet.
+    # Настоящие сервисы требуют живого сеанса Flet.
     application.url_launcher = FakeUrlLauncher()
+    application.storage_paths = FakeStoragePaths()
+    application.share = FakeShare()
     application.start()
 
     return application
@@ -71,3 +80,25 @@ def cancel_file_choice(app: ZondApp) -> None:
         return []
 
     app.file_picker.pick_files = _pick_files
+
+
+@pytest.fixture
+def mobile_page() -> FakePage:
+    """Страница, притворяющаяся мобильным устройством."""
+
+    page = FakePage()
+    page.platform = ft.PagePlatform.ANDROID
+
+    return page
+
+
+@pytest.fixture
+def mobile_app(mobile_page: FakePage, storage: JsonStorage, tmp_path: Path) -> ZondApp:
+    """Приложение на мобильной платформе."""
+
+    application = ZondApp(mobile_page, storage=storage)
+    application.url_launcher = FakeUrlLauncher()
+    application.storage_paths = FakeStoragePaths(tmp_path / "documents")
+    application.share = FakeShare()
+
+    return application

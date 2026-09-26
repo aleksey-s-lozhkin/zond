@@ -40,6 +40,46 @@ Homepage = "https://github.com/aleksey-s-lozhkin/ECTS"
 packages = ["zond", "zond.app", "zond.models", "zond.services", "zond.ui",
             "zond.ui.components", "zond.ui.screens", "zond.ui.widgets", "zond.utils"]
 
+# ------------------------------------------------------------ flet build
+#
+# Конфигурация сборки приложения: flet build apk | aab | ipa | macos | windows.
+# Подробности и порядок установки инструментов — в docs/mobile.md.
+
+[tool.flet]
+# Обратный домен организации: из него собирается идентификатор пакета.
+# Перед публикацией в магазине приложений согласуйте значение с ИТ-службой.
+org = "ru.gazprom"
+bundle_id = "ru.gazprom.zond.ects"
+product = "ЗОНД: ECTS"
+company = "ПАО «Газпром»"
+copyright = "© 2026 ПАО «Газпром»"
+build_number = 1
+
+# Каталоги и файлы, не нужные внутри приложения. Виртуальное окружение
+# исключать обязательно: иначе в пакет попадёт сама среда разработки.
+[tool.flet.app]
+exclude = [
+    ".venv",
+    ".git",
+    ".idea",
+    ".pytest_cache",
+    ".ruff_cache",
+    "__pycache__",
+    "build",
+    "dist",
+    "reports",
+    "tests",
+    "tools",
+    "docs",
+]
+
+# Оформление заставки при запуске.
+[tool.flet.splash]
+color = "#2563EB"
+dark_color = "#1D4ED8"
+android = true
+ios = true
+
 # --------------------------------------------------------------------- ruff
 
 [tool.ruff]

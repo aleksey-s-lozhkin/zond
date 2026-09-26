@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import flet as ft
+
 
 class FakeWindow:
     """Заглушка окна приложения."""
@@ -28,6 +30,10 @@ class FakePage:
         self.services: list = []
         self.controls: list = []
         self.window = FakeWindow()
+
+        # По умолчанию настольная платформа: так тесты проверяют обычное
+        # поведение, а мобильное задаётся явно.
+        self.platform = ft.PagePlatform.MACOS
 
         self.title: str | None = None
         self.theme_mode = None
@@ -85,3 +91,31 @@ class FakeUrlLauncher:
 
     async def launch_url(self, url, *args, **kwargs) -> None:
         self.urls.append(str(url))
+
+
+class FakeStoragePaths:
+    """Заглушка :class:`flet.StoragePaths`."""
+
+    def __init__(self, documents: Path | None = None) -> None:
+        self.documents = documents
+        self.available = True
+
+    async def get_application_documents_directory(self) -> str | None:
+        if not self.available:
+            raise RuntimeError("платформа недоступна")
+
+        return None if self.documents is None else str(self.documents)
+
+
+class FakeShare:
+    """Заглушка :class:`flet.Share`."""
+
+    def __init__(self) -> None:
+        self.files: list[str] = []
+        self.fail = False
+
+    async def share_files(self, files, **_kwargs) -> None:
+        if self.fail:
+            raise RuntimeError("меню «Поделиться» недоступно")
+
+        self.files.extend(str(item) for item in files)

@@ -18,11 +18,18 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 ASSETS_DIR = BASE_DIR / "assets"
 
 
-def main(page: ft.Page) -> None:
-    """Собрать приложение и показать стартовый экран."""
+async def main(page: ft.Page) -> None:
+    """Собрать приложение и показать стартовый экран.
+
+    Асинхронная, потому что до первого экрана нужно определить каталог данных:
+    на мобильных платформах он отличается от настольного.
+    """
 
     configure_logging()
-    ZondApp(page).start()
+
+    app = ZondApp(page)
+    await app.prepare()
+    app.start()
 
 
 def run() -> None:

@@ -4,19 +4,26 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from uuid import uuid4
 
 import flet as ft
 
 from zond.app.navigator import ZondNavigator
+from zond.app.platform import has_local_files, is_desktop, is_mobile
 from zond.app.state import ZondState
 from zond.models.inspection import Inspection
 from zond.services.errors import ReportError, StorageError, TemplateParseError, ZondError
 from zond.services.inspection_factory import InspectionFactory
 from zond.services.json_storage import JsonStorage, StoredInspection
 from zond.services.report_generator import ReportGenerator
+from zond.services.sample_templates import (
+    available_samples,
+    sample_subtitle,
+    sample_title,
+)
 from zond.services.template_loader import TemplateLoader
 from zond.ui.colors import AppColors
-from zond.ui.components.dialogs import show_confirm, show_error
+from zond.ui.components.dialogs import show_choice, show_confirm, show_error, show_info
 from zond.ui.screens.base_screen import AppScreen
 from zond.ui.screens.check_screen import CheckScreen
 from zond.ui.screens.finish_screen import FinishScreen
@@ -62,6 +69,15 @@ class ZondApp:
         self.url_launcher = ft.UrlLauncher()
         page.services.append(self.url_launcher)
 
+        # Каталоги устройства и системное меню «Поделиться» — нужны на
+        # мобильных платформах: писать рядом с приложением нельзя, а ссылку
+        # file:// открыть другим приложением не получится.
+        self.storage_paths = ft.StoragePaths()
+        page.services.append(self.storage_paths)
+
+        self.share = ft.Share()
+        page.services.append(self.share)
+
         self._configure_page()
 
     # ---------------------------------------------------------------- запуск
@@ -74,6 +90,10 @@ class ZondApp:
         self.page.padding = 0
         self.page.spacing = 0
 
+        # На мобильных платформах окна нет, а размер задаёт система.
+        if not is_desktop(self.page):
+            return
+
         window = getattr(self.page, "window", None)
 
         if window is None:  # pragma: no cover - веб-режим без окна
@@ -85,11 +105,48 @@ class ZondApp:
         window.min_width = 380
         window.min_height = 600
 
+    async def prepare(self) -> None:
+        """Учесть особенности платформы до показа интерфейса.
+
+        На мобильных платформах каталог рядом с приложением доступен только
+        для чтения, поэтому данные проверок переносятся в каталог документов
+        приложения. Без этого не сохранился бы даже черновик.
+        """
+
+        if not is_mobile(self.page):
+            return
+
+        root = await self._mobile_data_dir()
+
+        if root is not None:
+            self.storage = JsonStorage(root)
+
+        logger.info("Каталог данных: %s", self.storage.root)
+
+    async def _mobile_data_dir(self) -> Path | None:
+        """Каталог документов приложения для хранения проверок."""
+
+        try:
+            documents = await self.storage_paths.get_application_documents_directory()
+        except Exception:
+            logger.exception("Не удалось определить каталог документов приложения")
+            return None
+
+        if not documents:
+            logger.warning("Платформа не сообщила каталог документов приложения")
+            return None
+
+        return Path(documents) / "reports"
+
     def start(self) -> None:
         """Показать стартовый экран."""
 
         self.navigator.show(UploadScreen(self))
-        logger.info("Приложение запущено, каталог данных: %s", self.storage.root)
+        logger.info(
+            "Приложение запущено: платформа %s, каталог данных %s",
+            getattr(self.page, "platform", "неизвестна"),
+            self.storage.root,
+        )
 
     # ------------------------------------------------------------ загрузка
 
@@ -111,8 +168,9 @@ class ZondApp:
 
         await self._load_template()
 
-    async def _load_template(self) -> None:
-        path = await self._pick_file(["csv"], "Выберите CSV-шаблон проверки")
+    async def _load_template(self, path: Path | None = None) -> None:
+        if path is None:
+            path = await self._pick_file(["csv"], "Выберите CSV-шаблон проверки")
 
         if path is None:
             return
@@ -147,28 +205,106 @@ class ZondApp:
         self._open_inspection(inspection)
 
     async def _pick_file(self, extensions: list[str], title: str) -> Path | None:
+        """Выбрать файл и вернуть путь к нему.
+
+        На настольных платформах диалог отдаёт локальный путь. В песочнице
+        Android и iOS такого пути нет, поэтому файл запрашивается вместе с
+        содержимым и сохраняется в рабочий каталог приложения — дальше с ним
+        работают как с обычным файлом.
+        """
+
+        local_paths = has_local_files(self.page)
+
         files = await self.file_picker.pick_files(
             dialog_title=title,
-            allowed_extensions=extensions,
+            # Фильтр по расширениям поддерживают не все платформы.
+            allowed_extensions=extensions if local_paths else None,
             allow_multiple=False,
+            with_data=not local_paths,
         )
 
         if not files:
             logger.debug("Выбор файла отменён пользователем")
             return None
 
-        raw_path = getattr(files[0], "path", None)
+        selected = files[0]
 
-        if not raw_path:
-            show_error(
-                self.page,
-                "Файл недоступен",
-                "Выбранный файл не имеет локального пути. "
-                "В веб-версии используйте загрузку файла средствами браузера.",
-            )
+        if selected.path:
+            return Path(selected.path)
+
+        content = getattr(selected, "bytes", None)
+
+        if content:
+            return self._save_incoming(selected)
+
+        show_error(
+            self.page,
+            "Файл недоступен",
+            "Не удалось прочитать выбранный файл. "
+            "Сохраните его в память устройства и попробуйте снова.",
+        )
+        return None
+
+    def _save_incoming(self, selected) -> Path | None:
+        """Сохранить полученный файл в рабочий каталог приложения."""
+
+        name = getattr(selected, "name", "") or "template.csv"
+        suffix = Path(name).suffix or ".csv"
+
+        incoming = self.storage.root / "incoming"
+
+        try:
+            incoming.mkdir(parents=True, exist_ok=True)
+            target = incoming / f"{uuid4().hex[:8]}_{Path(name).stem}{suffix}"
+            target.write_bytes(selected.bytes)
+        except OSError as error:
+            logger.exception("Не удалось сохранить выбранный файл")
+            show_error(self.page, "Не удалось прочитать файл", str(error))
             return None
 
-        return Path(raw_path)
+        logger.info("Выбранный файл сохранён: %s", target)
+        return target
+
+    def choose_sample(self) -> None:
+        """Предложить образец шаблона, поставляемый с приложением.
+
+        На телефоне выбрать CSV из памяти неудобно, а иногда и нечем —
+        файл сначала нужно туда перенести. Поэтому готовые образцы можно
+        открыть прямо из интерфейса.
+        """
+
+        samples = available_samples()
+
+        if not samples:
+            show_info(
+                self.page,
+                "Образцы недоступны",
+                "В этой сборке приложения нет встроенных шаблонов. "
+                "Загрузите CSV-файл из памяти устройства.",
+            )
+            return
+
+        show_choice(
+            self.page,
+            "Образцы шаблонов",
+            "Готовые шаблоны проверок, поставляемые вместе с приложением.",
+            [
+                (sample_title(path), sample_subtitle(path), self._sample_loader(path))
+                for path in samples
+            ],
+        )
+
+    def _sample_loader(self, path: Path):
+        """Обработчик выбора образца.
+
+        Flet дожидается только настоящих корутин, поэтому обработчик
+        оборачивается в async-функцию, а не в lambda.
+        """
+
+        async def load(event) -> None:
+            await self._load_template(path)
+
+        return load
 
     # ----------------------------------------------------------- сценарий
 
@@ -268,6 +404,10 @@ class ZondApp:
             show_error(self.page, "Файл не найден", f"Файл не найден:\n{target}")
             return
 
+        if is_mobile(self.page):
+            await self._share_file(target)
+            return
+
         uri = target.resolve().as_uri()
 
         try:
@@ -288,6 +428,25 @@ class ZondApp:
                 self.page,
                 "Не удалось открыть файл",
                 f"Откройте файл вручную:\n{target}\n\n{error}",
+            )
+
+    async def _share_file(self, target: Path) -> None:
+        """Отправить файл в системное меню «Поделиться».
+
+        Ссылку ``file://`` на Android и iOS открыть другим приложением
+        нельзя из-за песочницы, поэтому протокол предлагается сохранить
+        или отправить средствами системы.
+        """
+
+        try:
+            await self.share.share_files([str(target)])
+            logger.info("Файл предложен к отправке: %s", target)
+        except Exception as error:  # pragma: no cover - зависит от платформы
+            logger.exception("Не удалось поделиться файлом %s", target)
+            show_error(
+                self.page,
+                "Не удалось открыть файл",
+                f"Файл сохранён по пути:\n{target}\n\n{error}",
             )
 
     # ---------------------------------------------------------- навигация

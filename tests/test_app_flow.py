@@ -435,8 +435,11 @@ def test_cancelled_file_choice_changes_nothing(app: ZondApp, cancel_file_choice)
 
 def test_template_with_no_local_path_shows_error(app: ZondApp, storage: JsonStorage) -> None:
     class NoPathFile:
+        """Файл без локального пути и без содержимого."""
+
         name = "web.csv"
         path = None
+        bytes = None
 
     async def _pick_files(**_kwargs):
         return [NoPathFile()]

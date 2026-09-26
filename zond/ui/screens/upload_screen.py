@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import flet as ft
 
+from zond.services.sample_templates import available_samples
 from zond.ui.colors import AppColors
 from zond.ui.components.buttons import GhostButton, PrimaryButton, SecondaryButton
 from zond.ui.design import ControlSize, FontSize, Space
@@ -34,6 +35,17 @@ class UploadScreen(AppScreen):
                 width=300,
             ),
         ]
+
+        samples = available_samples()
+
+        if samples:
+            buttons.append(
+                GhostButton(
+                    f"Загрузить образец ({len(samples)})",
+                    icon=AppIcons.LIST,
+                    on_click=self._choose_sample,
+                )
+            )
 
         if stored:
             label = f"История проверок ({len(stored)})"
@@ -100,6 +112,9 @@ class UploadScreen(AppScreen):
 
     async def _pick_inspection(self, event) -> None:
         await self.app.pick_inspection()
+
+    def _choose_sample(self, event) -> None:
+        self.app.choose_sample()
 
     def _open_history(self, event) -> None:
         self.app.open_history()

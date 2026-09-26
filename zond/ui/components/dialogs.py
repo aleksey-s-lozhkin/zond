@@ -7,7 +7,7 @@
 from __future__ import annotations
 
 import inspect
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 
 import flet as ft
 
@@ -81,6 +81,82 @@ def show_info(page: ft.Page, title: str, message: str) -> None:
             ),
             actions=[ft.TextButton("Закрыть", on_click=lambda e: _close(page))],
             actions_alignment=ft.MainAxisAlignment.END,
+        )
+    )
+
+
+def show_choice(
+    page: ft.Page,
+    title: str,
+    message: str,
+    options: Sequence[tuple[str, str, Callable]],
+) -> None:
+    """Показать список вариантов на выбор.
+
+    ``options`` — последовательность троек «заголовок, пояснение, обработчик».
+    Обработчик вызывается после закрытия диалога и может быть как обычной,
+    так и асинхронной функцией.
+    """
+
+    def handler(callback: Callable):
+        async def _selected(event) -> None:
+            _close(page)
+            result = callback(event)
+
+            if inspect.isawaitable(result):
+                await result
+
+        return _selected
+
+    items: list[ft.Control] = []
+
+    for label, description, callback in options:
+        rows: list[ft.Control] = [
+            ft.Text(
+                label,
+                size=FontSize.BODY,
+                weight=ft.FontWeight.W_600,
+                color=AppColors.TEXT,
+            )
+        ]
+
+        if description:
+            rows.append(
+                ft.Text(
+                    description,
+                    size=FontSize.CAPTION,
+                    color=AppColors.TEXT_SECONDARY,
+                )
+            )
+
+        items.append(
+            ft.Container(
+                padding=ft.Padding(
+                    left=Space.MD,
+                    top=Space.SM,
+                    right=Space.MD,
+                    bottom=Space.SM,
+                ),
+                border_radius=Radius.SM,
+                bgcolor=AppColors.SURFACE_ALT,
+                on_click=handler(callback),
+                content=ft.Column(controls=rows, spacing=2, tight=True),
+            )
+        )
+
+    page.show_dialog(
+        ft.AlertDialog(
+            modal=True,
+            scrollable=True,
+            shape=ft.RoundedRectangleBorder(radius=Radius.LG),
+            title=_dialog_title(title, AppIcons.LIST, AppColors.PRIMARY),
+            content=ft.Container(
+                width=460,
+                content=ft.Column(controls=items, spacing=Space.SM, tight=True),
+            ),
+            actions=[ft.TextButton("Отмена", on_click=lambda e: _close(page))],
+            actions_alignment=ft.MainAxisAlignment.END,
+            data=message,
         )
     )
 

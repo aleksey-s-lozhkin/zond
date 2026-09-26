@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 
 from tests.fakes import FakePage
-from tests.helpers import complete_inspection
+from tests.helpers import complete_inspection, find_control
 from zond.app.app import ZondApp
 from zond.services.json_storage import JsonStorage
 from zond.services.template_loader import TemplateLoader
@@ -114,7 +114,7 @@ def test_check_screen_without_template(page: FakePage, storage: JsonStorage) -> 
 
     screen = CheckScreen(application)
 
-    assert isinstance(screen.content, EmptyState)
+    assert find_control(screen, EmptyState) is not None
 
 
 def test_inspection_screen_without_inspection(page: FakePage, storage: JsonStorage) -> None:
@@ -122,7 +122,7 @@ def test_inspection_screen_without_inspection(page: FakePage, storage: JsonStora
 
     screen = InspectionScreen(application)
 
-    assert isinstance(screen.content, EmptyState)
+    assert find_control(screen, EmptyState) is not None
 
 
 def test_inspection_screen_builds_fields(app: ZondApp, sample_template: Path) -> None:
@@ -144,7 +144,7 @@ def test_finish_screen_without_finished_inspection(page: FakePage, storage: Json
 
     screen = FinishScreen(application)
 
-    assert isinstance(screen.content, EmptyState)
+    assert find_control(screen, EmptyState) is not None
 
 
 def test_finish_screen_builds(app: ZondApp, sample_template: Path, choose_file) -> None:
