@@ -24,6 +24,9 @@ SAMPLE_TITLES = {
     "kip_kranovyy_uzel_mg": "КИП кранового узла газопровода",
     "elektroustanovki": "Электроустановки",
     "tehnicheskie_sredstva_ohrany": "Технические средства охраны",
+    "uaz_patriot_to": "УАЗ Патриот: ТО и техсостояние",
+    "server_bezopasnost": "Серверное помещение и сервер",
+    "podyomnoe_sooruzhenie": "Стационарное подъёмное сооружение",
 }
 
 
