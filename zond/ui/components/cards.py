@@ -76,6 +76,8 @@ class InfoRow(ft.Row):
         label_width: int = 150,
         value_color: str = AppColors.TEXT,
         emphasize: bool = False,
+        tooltip: str | None = None,
+        max_lines: int | None = None,
     ) -> None:
         super().__init__(
             spacing=Space.MD,
@@ -96,6 +98,9 @@ class InfoRow(ft.Row):
                     weight=ft.FontWeight.W_600 if emphasize else ft.FontWeight.NORMAL,
                     expand=True,
                     selectable=True,
+                    tooltip=tooltip,
+                    max_lines=max_lines,
+                    overflow=(ft.TextOverflow.ELLIPSIS if max_lines is not None else None),
                 ),
             ],
         )

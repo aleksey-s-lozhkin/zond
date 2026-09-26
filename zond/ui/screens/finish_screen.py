@@ -80,11 +80,18 @@ class FinishScreen(AppScreen):
 
         cards.append(
             SectionCard(
-                InfoRow("Данные проверки", str(json_path)),
+                InfoRow(
+                    "Данные проверки",
+                    self.app.location_label(json_path),
+                    tooltip=str(json_path),
+                    max_lines=2,
+                ),
                 InfoRow(
                     "Протокол PDF",
-                    str(pdf_path) if pdf_exists else "ещё не сформирован",
+                    (self.app.location_label(pdf_path) if pdf_exists else "ещё не сформирован"),
                     value_color=AppColors.TEXT if pdf_exists else AppColors.TEXT_SECONDARY,
+                    tooltip=str(pdf_path) if pdf_exists else None,
+                    max_lines=2,
                 ),
                 title="Сохранённые файлы",
                 subtitle="Данные сохранены автоматически.",

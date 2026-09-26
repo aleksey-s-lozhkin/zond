@@ -182,6 +182,40 @@ def test_desktop_keeps_project_reports(app: ZondApp, monkeypatch, tmp_path: Path
     assert app.storage.pdf_dir == app.storage.root / "pdf"
 
 
+def test_location_label_shows_export_folder(
+    mobile_app: ZondApp,
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """В интерфейсе — понятная часть пути, а не вся строка целиком."""
+
+    documents = tmp_path / "Documents"
+    documents.mkdir()
+    monkeypatch.setattr("zond.app.app.PUBLIC_DOCUMENTS_DIR", documents)
+
+    asyncio.run(mobile_app.prepare())
+
+    label = mobile_app.location_label(mobile_app.storage.pdf_dir / "protocol.pdf")
+
+    assert label == "Документы/ЗОНД"
+
+
+def test_location_label_shows_folder_on_mobile(mobile_app: ZondApp) -> None:
+    """На телефоне — только папка: длинное имя файла не помещается."""
+
+    label = mobile_app.location_label(mobile_app.storage.inspections_dir / "check.json")
+
+    assert label == "inspections"
+
+
+def test_location_label_shows_full_path_on_desktop(app: ZondApp) -> None:
+    """В проводнике нужен полный путь, и на настольном экране он помещается."""
+
+    path = app.storage.inspections_dir / "check.json"
+
+    assert app.location_label(path) == str(path)
+
+
 def test_android_prefers_visible_external_storage(
     mobile_app: ZondApp,
     tmp_path: Path,

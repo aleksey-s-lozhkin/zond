@@ -216,6 +216,26 @@ class ZondApp:
 
         return str(self.storage.pdf_dir)
 
+    def location_label(self, path: str | Path) -> str:
+        """Понятное расположение файла.
+
+        На телефоне полный путь вместе с длинным именем файла не помещается
+        и выглядит как мусор: имя всё равно не набирают руками, а открывают
+        кнопкой. Поэтому там показывается только папка, а полный путь
+        остаётся в подсказке. На настольных платформах путь показывается
+        целиком — он помещается, и по нему ходят в проводник.
+        """
+
+        target = Path(path)
+
+        if self.export_dir is not None and target.parent == self.export_dir:
+            return self.export_hint()
+
+        if is_mobile(self.page):
+            return target.parent.name
+
+        return str(target)
+
     def open_help(self) -> None:
         """Открыть справку."""
 
