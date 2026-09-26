@@ -14,7 +14,7 @@
 
 ## 0. Что сделано по итогам ревью
 
-Реализация: 281 тест, `ruff check` и `ruff format --check` без замечаний.
+Реализация: 311 тестов, `ruff check` и `ruff format --check` без замечаний.
 
 | № | Замечание | Как решено |
 |---|---|---|
@@ -33,7 +33,7 @@
 | MAJOR-13 | Навигация без истории | `ZondNavigator` со стеком: `show`/`push`/`replace`/`back` |
 | MAJOR-14 | Дизайн-система не применялась | Экраны собираются только из `components/*`, ни одного inline `ButtonStyle` |
 | MAJOR-15 | JSON не самодостаточен | `format_version: 3` со снимком полей, `Inspection.from_dict()`, миграции v1 и v2 |
-| MAJOR-16 | Нет тестов, README, конфигурации | 281 тест, `pyproject.toml`, ruff, CI, README, спецификация шаблона |
+| MAJOR-16 | Нет тестов, README, конфигурации | 311 тестов, `pyproject.toml`, ruff, CI, README, спецификация шаблона |
 | MINOR-17 | Отладка через `print` | Модуль `logging`, `ZOND_LOG_LEVEL` |
 | MINOR-18 | Атрибуты до `super().__init__()` | Устранено: экраны вызывают `super().__init__()` первым |
 | MINOR-19 | Слабости парсера CSV | `charset-normalizer`, определение разделителя по заголовку, нормализация заголовков, проверка дубликатов и уникальности |
