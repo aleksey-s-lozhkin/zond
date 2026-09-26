@@ -402,7 +402,6 @@ def test_async_event_handlers_are_real_coroutines() -> None:
         ZondApp.open_path,
         FinishScreen._open_pdf,
         HistoryScreen._make_pdf,
-        UploadScreen._pick_template,
         UploadScreen._pick_inspection,
     ):
         assert inspect.iscoroutinefunction(method), method.__qualname__

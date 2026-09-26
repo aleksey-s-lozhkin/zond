@@ -115,3 +115,34 @@ def collect_texts(control, found: list[str] | None = None) -> list[str]:
                     collect_texts(child, found)
 
     return found
+
+
+def choice_rows(application: ZondApp) -> list:
+    """Строки последнего показанного диалога выбора.
+
+    Диалог собирается из контейнеров с обработчиком нажатия; заголовки и
+    разделители обработчика не имеют и в список не попадают.
+    """
+
+    dialog = application.page.dialogs[-1]
+    column = dialog.content.content
+
+    return [
+        row for row in column.controls if isinstance(row, ft.Container) and row.on_click is not None
+    ]
+
+
+def choice_labels(application: ZondApp) -> list[str]:
+    """Все подписи диалога выбора, включая заголовки групп."""
+
+    dialog = application.page.dialogs[-1]
+
+    return collect_texts(dialog.content)
+
+
+def click_row(row) -> None:
+    """Нажать строку диалога выбора."""
+
+    import asyncio
+
+    asyncio.run(row.on_click(None))

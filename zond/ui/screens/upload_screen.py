@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import flet as ft
 
-from zond.services.sample_templates import available_samples
 from zond.ui.colors import AppColors
 from zond.ui.components.cards import ActionCard
 from zond.ui.design import ControlSize, FontSize, Space
@@ -19,10 +18,8 @@ from zond.ui.screens.base_screen import AppScreen
 
 VERSION = "1.0.0"
 
-#: Пояснение к готовым шаблонам: главное — что их не нужно искать.
-#: Перечислять шаблоны здесь не стоит: список растёт, а полный состав
-#: всё равно виден в диалоге. Количество показано в заголовке карточки.
-SAMPLES_HINT = "Готовые чек-листы уже в приложении — откроется список"
+#: Пояснение к выбору шаблона: сразу видно, что источник не один.
+TEMPLATE_HINT = "Свой CSV-файл или готовый пример из приложения"
 
 
 def _section_title(text: str) -> ft.Text:
@@ -42,30 +39,18 @@ class UploadScreen(AppScreen):
     def compose(self) -> ft.Control:
         stored = self.app.storage.list_stored()
         drafts = sum(1 for entry in stored if entry.is_draft)
-        samples = available_samples()
-
-        start: list[ft.Control] = []
-
-        if samples:
-            start.append(
-                ActionCard(
-                    f"Готовые шаблоны ({len(samples)})",
-                    SAMPLES_HINT,
-                    icon=AppIcons.SAMPLES,
-                    on_click=self._choose_sample,
-                    primary=True,
-                )
-            )
-
-        start.append(
+        # Загрузить шаблон можно из своего файла или из встроенного примера,
+        # но действие это одно, поэтому и карточка одна: источник выбирается
+        # на следующем шаге.
+        start: list[ft.Control] = [
             ActionCard(
-                "Свой шаблон из файла",
-                "CSV-файл, сохранённый в памяти устройства",
+                "Выбрать шаблон проверки",
+                TEMPLATE_HINT,
                 icon=AppIcons.TEMPLATE,
-                on_click=self._pick_template,
-                primary=not samples,
+                on_click=self._choose_template,
+                primary=True,
             )
-        )
+        ]
 
         cont: list[ft.Control] = []
 
@@ -205,14 +190,11 @@ class UploadScreen(AppScreen):
 
     # --------------------------------------------------------- обработчики
 
-    async def _pick_template(self, event) -> None:
-        await self.app.pick_template()
-
     async def _pick_inspection(self, event) -> None:
         await self.app.pick_inspection()
 
-    def _choose_sample(self, event) -> None:
-        self.app.choose_sample()
+    def _choose_template(self, event) -> None:
+        self.app.choose_template()
 
     def _open_history(self, event) -> None:
         self.app.open_history()

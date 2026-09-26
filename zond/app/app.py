@@ -16,14 +16,14 @@ from zond.services.errors import ReportError, StorageError, TemplateParseError, 
 from zond.services.inspection_factory import InspectionFactory
 from zond.services.json_storage import JsonStorage, StoredInspection
 from zond.services.report_generator import ReportGenerator
-from zond.services.sample_templates import (
-    available_samples,
-    sample_subtitle,
-    sample_title,
-)
+from zond.services.sample_templates import available_samples
 from zond.services.template_loader import TemplateLoader
 from zond.ui.colors import AppColors
-from zond.ui.components.dialogs import show_choice, show_confirm, show_error, show_info
+from zond.ui.components.dialogs import (
+    show_confirm,
+    show_error,
+    show_template_choice,
+)
 from zond.ui.screens.base_screen import AppScreen
 from zond.ui.screens.check_screen import CheckScreen
 from zond.ui.screens.defects_screen import DefectsScreen
@@ -403,46 +403,20 @@ class ZondApp:
         logger.info("Выбранный файл сохранён: %s", target)
         return target
 
-    def choose_sample(self) -> None:
-        """Предложить образец шаблона, поставляемый с приложением.
+    def choose_template(self) -> None:
+        """Предложить источник шаблона: свой файл или готовый пример.
 
-        На телефоне выбрать CSV из памяти неудобно, а иногда и нечем —
-        файл сначала нужно туда перенести. Поэтому готовые образцы можно
-        открыть прямо из интерфейса.
+        Действие одно — загрузить шаблон, — поэтому и вход один. Два пункта
+        стартового экрана выдавали одно действие за два и наводили на мысль,
+        что шаблон устанавливается в приложение.
         """
 
-        samples = available_samples()
-
-        if not samples:
-            show_info(
-                self.page,
-                "Образцы недоступны",
-                "В этой сборке приложения нет встроенных шаблонов. "
-                "Загрузите CSV-файл из памяти устройства.",
-            )
-            return
-
-        show_choice(
+        show_template_choice(
             self.page,
-            "Образцы шаблонов",
-            "Готовые шаблоны проверок, поставляемые вместе с приложением.",
-            [
-                (sample_title(path), sample_subtitle(path), self._sample_loader(path))
-                for path in samples
-            ],
+            on_file=self.pick_template,
+            samples=available_samples(),
+            on_sample=self._load_template,
         )
-
-    def _sample_loader(self, path: Path):
-        """Обработчик выбора образца.
-
-        Flet дожидается только настоящих корутин, поэтому обработчик
-        оборачивается в async-функцию, а не в lambda.
-        """
-
-        async def load(event) -> None:
-            await self._load_template(path)
-
-        return load
 
     # ----------------------------------------------------------- сценарий
 

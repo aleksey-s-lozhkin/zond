@@ -21,7 +21,7 @@ from tests.fakes import (
     FakeStoragePaths,
     FakeUrlLauncher,
 )
-from tests.helpers import collect_texts
+from tests.helpers import choice_labels, choice_rows, click_row, collect_texts
 from zond.app.app import ZondApp
 from zond.app.platform import has_local_files, is_desktop, is_mobile
 from zond.services.json_storage import JsonStorage
@@ -518,48 +518,72 @@ def test_unknown_sample_gets_file_name_as_title(tmp_path: Path) -> None:
     assert sample_title(tmp_path / "неизвестный.csv") == "неизвестный"
 
 
-def test_sample_chooser_shows_dialog(app: ZondApp) -> None:
-    app.choose_sample()
+def test_template_chooser_offers_own_file_first(app: ZondApp) -> None:
+    """Действие одно, поэтому и вход один: файл первым, примеры ниже."""
 
-    assert app.page.dialogs
+    app.choose_template()
+
+    labels = choice_labels(app)
+
+    assert "Файл из памяти устройства" in labels
+    assert "Примеры" in labels
+
+    rows = choice_rows(app)
+
+    assert "Файл из памяти устройства" in collect_texts(rows[0].content)
 
 
-def test_sample_loader_is_a_coroutine_function(app: ZondApp) -> None:
-    """Flet дожидается только настоящих корутин."""
+def test_template_chooser_lists_samples(app: ZondApp) -> None:
+    app.choose_template()
 
-    import inspect
+    labels = choice_labels(app)
 
-    handler = app._sample_loader(Path("tests/data/sample.csv"))
-
-    assert inspect.iscoroutinefunction(handler)
+    assert any("учебн" in label.lower() or "пример" in label.lower() for label in labels)
 
 
-def test_sample_loader_loads_template(app: ZondApp) -> None:
-    handler = app._sample_loader(Path("tests/data/sample.csv"))
+def test_choosing_sample_loads_template(app: ZondApp) -> None:
+    """Выбор примера в списке загружает шаблон."""
 
-    asyncio.run(handler(None))
+    app.choose_template()
+
+    rows = choice_rows(app)
+
+    # Первая строка — свой файл, дальше идут примеры.
+    click_row(rows[1])
 
     assert app.state.template is not None
-    assert len(app.state.template.fields) == 12
 
 
-def test_upload_screen_offers_samples(app: ZondApp) -> None:
-    """Действие названо так, чтобы было понятно: шаблоны уже в приложении."""
+def test_choosing_own_file_opens_the_picker(
+    app: ZondApp, choose_file, sample_template: Path
+) -> None:
+    """Первая строка ведёт в системный выбор файла."""
+
+    choose_file(sample_template)
+    app.choose_template()
+
+    click_row(choice_rows(app)[0])
+
+    assert app.state.template is not None
+    assert app.state.template.name == "sample"
+
+
+def test_upload_screen_has_single_template_entry(app: ZondApp) -> None:
+    """Загрузка шаблона — одно действие, значит и карточка одна."""
 
     screen = UploadScreen(app)
     labels = collect_texts(screen.content)
 
-    assert any("Готовые шаблоны" in label for label in labels)
-    assert any("уже в приложении" in label for label in labels)
+    assert any("Выбрать шаблон проверки" in label for label in labels)
+    assert any("Свой CSV-файл или готовый пример" in label for label in labels)
+    assert not any("Готовые шаблоны" in label for label in labels)
+    assert not any("Свой шаблон из файла" in label for label in labels)
 
 
-def test_upload_screen_explains_each_action(app: ZondApp) -> None:
-    """У действий есть пояснения: иначе непонятно, откуда взять файл."""
-
+def test_upload_screen_groups_actions(app: ZondApp) -> None:
     screen = UploadScreen(app)
     labels = collect_texts(screen.content)
 
-    assert any("памяти устройства" in label for label in labels)
     assert any("НАЧАТЬ ПРОВЕРКУ" in label for label in labels)
     assert any("ПРОДОЛЖИТЬ" in label for label in labels)
 

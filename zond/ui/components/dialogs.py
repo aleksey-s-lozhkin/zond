@@ -11,6 +11,7 @@ from collections.abc import Callable, Sequence
 
 import flet as ft
 
+from zond.services.sample_templates import sample_subtitle, sample_title
 from zond.ui.colors import AppColors
 from zond.ui.design import FontSize, Radius, Space
 from zond.ui.icons import AppIcons
@@ -85,6 +86,89 @@ def show_info(page: ft.Page, title: str, message: str) -> None:
     )
 
 
+def _choice_row(
+    page: ft.Page,
+    label: str,
+    description: str,
+    callback: Callable,
+) -> ft.Control:
+    """Строка списка выбора: заголовок, пояснение и обработчик."""
+
+    def handler() -> Callable:
+        async def _selected(event) -> None:
+            _close(page)
+            result = callback(event)
+
+            if inspect.isawaitable(result):
+                await result
+
+        return _selected
+
+    rows: list[ft.Control] = [
+        ft.Text(
+            label,
+            size=FontSize.BODY,
+            weight=ft.FontWeight.W_600,
+            color=AppColors.TEXT,
+        )
+    ]
+
+    if description:
+        rows.append(
+            ft.Text(
+                description,
+                size=FontSize.CAPTION,
+                color=AppColors.TEXT_SECONDARY,
+            )
+        )
+
+    return ft.Container(
+        padding=ft.Padding(
+            left=Space.MD,
+            top=Space.SM,
+            right=Space.MD,
+            bottom=Space.SM,
+        ),
+        border_radius=Radius.SM,
+        bgcolor=AppColors.SURFACE_ALT,
+        on_click=handler(),
+        content=ft.Column(controls=rows, spacing=2, tight=True),
+    )
+
+
+def _choice_dialog(
+    page: ft.Page,
+    title: str,
+    message: str,
+    items: Sequence[ft.Control],
+    icon=None,
+) -> None:
+    page.show_dialog(
+        ft.AlertDialog(
+            modal=True,
+            scrollable=True,
+            shape=ft.RoundedRectangleBorder(radius=Radius.LG),
+            title=_dialog_title(title, icon or AppIcons.LIST, AppColors.PRIMARY),
+            content=ft.Container(
+                width=460,
+                content=ft.Column(controls=list(items), spacing=Space.SM, tight=True),
+            ),
+            actions=[ft.TextButton("Отмена", on_click=lambda e: _close(page))],
+            actions_alignment=ft.MainAxisAlignment.END,
+            data=message,
+        )
+    )
+
+
+def _group_title(text: str) -> ft.Control:
+    return ft.Text(
+        text,
+        size=FontSize.CAPTION,
+        weight=ft.FontWeight.W_600,
+        color=AppColors.TEXT_SECONDARY,
+    )
+
+
 def show_choice(
     page: ft.Page,
     title: str,
@@ -98,66 +182,57 @@ def show_choice(
     так и асинхронной функцией.
     """
 
-    def handler(callback: Callable):
-        async def _selected(event) -> None:
-            _close(page)
-            result = callback(event)
+    items = [
+        _choice_row(page, label, description, callback) for label, description, callback in options
+    ]
 
-            if inspect.isawaitable(result):
-                await result
+    _choice_dialog(page, title, message, items)
 
-        return _selected
 
-    items: list[ft.Control] = []
+def show_template_choice(
+    page: ft.Page,
+    on_file: Callable,
+    samples: Sequence,
+    on_sample: Callable,
+) -> None:
+    """Выбор источника шаблона: свой файл или готовый пример.
 
-    for label, description, callback in options:
-        rows: list[ft.Control] = [
-            ft.Text(
-                label,
-                size=FontSize.BODY,
-                weight=ft.FontWeight.W_600,
-                color=AppColors.TEXT,
-            )
-        ]
+    Действие одно — загрузить шаблон, — а источников два. Держать их двумя
+    пунктами стартового экрана значит выдавать одно действие за два и
+    наводить на мысль, что шаблон «устанавливается» в приложение: отсюда и
+    вопросы про удаление старых шаблонов.
+    """
 
-        if description:
-            rows.append(
-                ft.Text(
-                    description,
-                    size=FontSize.CAPTION,
-                    color=AppColors.TEXT_SECONDARY,
+    items: list[ft.Control] = [
+        _choice_row(
+            page,
+            "Файл из памяти устройства",
+            "CSV-файл, сохранённый на телефоне или переданный по USB",
+            lambda event: on_file(),
+        )
+    ]
+
+    if samples:
+        items.append(ft.Container(height=Space.XS))
+        items.append(_group_title("Примеры"))
+        items.append(_group_title("Готовые чек-листы, чтобы посмотреть, как всё устроено."))
+
+        for path in samples:
+            items.append(
+                _choice_row(
+                    page,
+                    sample_title(path),
+                    sample_subtitle(path),
+                    lambda event, item=path: on_sample(item),
                 )
             )
 
-        items.append(
-            ft.Container(
-                padding=ft.Padding(
-                    left=Space.MD,
-                    top=Space.SM,
-                    right=Space.MD,
-                    bottom=Space.SM,
-                ),
-                border_radius=Radius.SM,
-                bgcolor=AppColors.SURFACE_ALT,
-                on_click=handler(callback),
-                content=ft.Column(controls=rows, spacing=2, tight=True),
-            )
-        )
-
-    page.show_dialog(
-        ft.AlertDialog(
-            modal=True,
-            scrollable=True,
-            shape=ft.RoundedRectangleBorder(radius=Radius.LG),
-            title=_dialog_title(title, AppIcons.LIST, AppColors.PRIMARY),
-            content=ft.Container(
-                width=460,
-                content=ft.Column(controls=items, spacing=Space.SM, tight=True),
-            ),
-            actions=[ft.TextButton("Отмена", on_click=lambda e: _close(page))],
-            actions_alignment=ft.MainAxisAlignment.END,
-            data=message,
-        )
+    _choice_dialog(
+        page,
+        "Выбрать шаблон проверки",
+        "Свой шаблон или готовый пример.",
+        items,
+        icon=AppIcons.TEMPLATE,
     )
 
 
