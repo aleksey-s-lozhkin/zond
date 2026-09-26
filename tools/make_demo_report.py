@@ -99,8 +99,6 @@ ANSWERS: dict[str, str] = {
     "vehicle_model": "УАЗ Патриот, 2019 год выпуска",
     "state_number": "А123ВС 163",
     "vin": "XTT316300K1234567",
-    "inspector": "Инженер по безопасности движения Смирнов А.В.",
-    "normative_base": "ТР ТС 018/2011, приложение 8, ГОСТ 33997-2016, ПДД РФ",
     "odometer": "74 250",
     "last_service_odometer": "70 000",
     "next_service_odometer": "85 000",
@@ -118,6 +116,23 @@ ANSWERS: dict[str, str] = {
     "discs_thickness": "24",
     "brake_specific_force": "0,58",
     "windshield_light": "78",
+}
+
+#: Значения, которые зависят от шаблона: одинаковые машинные имена полей в
+#: разных шаблонах означают разное, поэтому общий словарь здесь не подходит.
+TEMPLATE_ANSWERS: dict[str, dict[str, str]] = {
+    "uaz_patriot_to": {
+        "inspector": "Инженер по безопасности движения Смирнов А.В.",
+        "normative_base": "ТР ТС 018/2011, приложение 8, ГОСТ 33997-2016, ПДД РФ",
+    },
+    "podyomnoe_sooruzhenie": {
+        "inspector": "Инженер по надзору за подъёмными сооружениями Кузнецов Д.С.",
+        "normative_base": "ФНП № 461, ТР ТС 010/2011, руководство по эксплуатации",
+    },
+    "server_bezopasnost": {
+        "inspector": "Инженер по защите информации Орлов В.Н.",
+        "normative_base": "Приказы ФСТЭК № 17 и № 21, ГОСТ Р 51275, СП 484",
+    },
 }
 
 #: Точечные несоответствия для шаблона КИП: показывают, как протокол
@@ -173,9 +188,14 @@ def default_value(field) -> object:
 def fill(inspection: Inspection, today: str) -> None:
     """Заполнить проверку: сначала ответы по умолчанию, затем уточнения."""
 
+    specific = TEMPLATE_ANSWERS.get(inspection.template.name, {})
+
     for item in inspection.items:
         name = item.field.name
-        value = ANSWERS.get(name, DEFECTS_TEXT.get(name, default_value(item.field)))
+        value = specific.get(
+            name,
+            ANSWERS.get(name, DEFECTS_TEXT.get(name, default_value(item.field))),
+        )
 
         if name in ("inspection_date", "next_check_date"):
             value = today
