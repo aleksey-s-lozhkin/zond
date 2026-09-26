@@ -151,7 +151,14 @@ def _choice_dialog(
             title=_dialog_title(title, icon or AppIcons.LIST, AppColors.PRIMARY),
             content=ft.Container(
                 width=460,
-                content=ft.Column(controls=list(items), spacing=Space.SM, tight=True),
+                content=ft.Column(
+                    controls=list(items),
+                    spacing=Space.SM,
+                    tight=True,
+                    # Строки растягиваются на всю ширину диалога: иначе
+                    # карточка с коротким пояснением получается уже остальных.
+                    horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
+                ),
             ),
             actions=[ft.TextButton("Отмена", on_click=lambda e: _close(page))],
             actions_alignment=ft.MainAxisAlignment.END,
