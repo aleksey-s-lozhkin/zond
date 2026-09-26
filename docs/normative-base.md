@@ -10,6 +10,7 @@
 | [`elektroustanovki.csv`](../templates/elektroustanovki.csv) | Электроустановки | 123 | 11 |
 | [`tehnicheskie_sredstva_ohrany.csv`](../templates/tehnicheskie_sredstva_ohrany.csv) | Технические средства охраны | 113 | 10 |
 | [`uaz_patriot_to.csv`](../templates/uaz_patriot_to.csv) | УАЗ Патриот: ТО и техническое состояние | 156 | 12 |
+| [`podyomnoe_sooruzhenie.csv`](../templates/podyomnoe_sooruzhenie.csv) | Стационарное подъёмное сооружение | 146 | 12 |
 
 > **Главное.** Шаблоны — методические заготовки, а не утверждённые документы.
 > Конкретные номера пунктов, периодичность и нормируемые значения определяются
@@ -222,6 +223,7 @@ python tools/build_kip_template.py
 python tools/build_electrical_template.py
 python tools/build_security_template.py
 python tools/build_uaz_template.py
+python tools/build_lifting_template.py
 ```
 
 ---

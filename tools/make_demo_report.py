@@ -110,7 +110,6 @@ ANSWERS: dict[str, str] = {
     "pre_trip_remarks": "Не выявлено",
     "corrosion_map": "Не обнаружено",
     "washer_volume": "4",
-    "battery_voltage": "12,6",
     "charging_voltage": "14,2",
     "co_value": "0,4",
     "tread_depth": "6,5",
