@@ -1,4 +1,8 @@
-from dataclasses import dataclass, field
+"""Состояние текущего сеанса приложения."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
 
 from zond.models.field import Field
 from zond.models.inspection import Inspection
@@ -7,123 +11,154 @@ from zond.models.template import Template
 
 @dataclass(slots=True)
 class ZondState:
-    """ Состояние текущего сеанса приложения. """
+    """Данные текущего сеанса: активный шаблон и проверка."""
 
     template: Template | None = None
-
     inspection: Inspection | None = None
-
     current_group_index: int = 0
-
-    current_field_index: int = 0
-
-    answers: dict[str, object] = field(default_factory=dict)
-
     is_modified: bool = False
+
+    # ------------------------------------------------------- признаки
 
     @property
     def has_template(self) -> bool:
         return self.template is not None
 
-
     @property
     def has_inspection(self) -> bool:
         return self.inspection is not None
 
+    @property
+    def groups(self) -> list[str]:
+        """Группы полей текущего шаблона."""
+
+        return self.template.groups if self.template else []
 
     @property
     def total_groups(self) -> int:
-        """ Количество групп полей в текущем шаблоне. """
-
-        if not self.template:
-            return 0
-
-        groups = {
-            field.group
-            for field in self.template.fields
-        }
-
-        return len(groups)
+        return len(self.groups)
 
     @property
-    def groups(self) -> list[str]:
-        """Список групп полей текущего шаблона."""
+    def is_finished(self) -> bool:
+        """Пройдены ли все группы."""
 
-        if not self.template:
-            return []
+        return self.total_groups == 0 or self.current_group_index >= self.total_groups
 
-        return list(
-            dict.fromkeys(
-                field.group
-                for field in self.template.fields
-            )
-        )
+    @property
+    def is_first_group(self) -> bool:
+        return self.current_group_index <= 0
 
-
-    def next_group(self) -> bool:
-        """ Переход к следующей группе. """
-
-        if self.current_group_index < self.total_groups - 1:
-            self.current_group_index += 1
-            return True
-        return False
-
-
-    def previous_group(self) -> None:
-        """ Возврат к предыдущей группе. """
-
-        if self.current_group_index > 0:
-            self.current_group_index -= 1
-
-
-    def reset(self) -> None:
-        """ Полный сброс состояния. """
-
-        self.template = None
-        self.inspection = None
-        self.current_group_index = 0
-        #self.current_field_index = 0
-        self.answers.clear()
-        self.is_modified = False
+    @property
+    def is_last_group(self) -> bool:
+        return self.total_groups > 0 and self.current_group_index >= self.total_groups - 1
 
     @property
     def current_group(self) -> str | None:
-
-        if not self.groups:
+        if self.is_finished or not self.groups:
             return None
 
-        return self.groups[
-            self.current_group_index
-        ]
+        return self.groups[self.current_group_index]
 
     @property
     def current_fields(self) -> list[Field]:
+        """Поля текущей шага-группы."""
 
-        if not self.template:
+        if self.is_finished or self.template is None:
             return []
 
         group = self.current_group
 
-        return [
-            field
-            for field in self.template.fields
-            if field.group == group
-        ]
+        if group is None:
+            return []
+
+        return self.template.fields_in_group(group)
+
+    # ---------------------------------------------------------- прогресс
 
     @property
-    def current_field(self):
+    def answered_fields(self) -> int:
+        return self.inspection.answered_count if self.inspection else 0
 
-        fields = self.current_fields
+    @property
+    def total_fields(self) -> int:
+        return self.inspection.total_items if self.inspection else 0
 
-        if self.current_field_index >= len(fields):
-            return None
+    # ---------------------------------------------------------- действия
 
-        return fields[self.current_field_index]
+    def set_template(self, template: Template) -> None:
+        """Назначить шаблон, сбросив прогресс предыдущего сеанса."""
 
-    def set_answer(
-            self,
-            name: str,
-            value: object
-    ):
-        self.answers[name] = value
+        self.reset()
+        self.template = template
+
+    def set_inspection(self, inspection: Inspection) -> None:
+        """Сделать проверку активной."""
+
+        self.inspection = inspection
+        self.template = inspection.template
+        self.current_group_index = 0
+        self.is_modified = False
+
+    def goto_first_incomplete_group(self) -> None:
+        """Перейти к первой группе, где есть незаполненные обязательные поля.
+
+        Используется при возобновлении проверки, чтобы пользователь попал на
+        то место, где остановился, а не в начало формы.
+        """
+
+        self.current_group_index = 0
+
+        if self.inspection is None:
+            return
+
+        groups = self.groups
+
+        for index, group in enumerate(groups):
+            items = self.inspection.items_in_group(group)
+
+            if any(item.missing_required for item in items):
+                self.current_group_index = index
+                return
+
+        for index, group in enumerate(groups):
+            items = self.inspection.items_in_group(group)
+
+            if any(item.is_empty for item in items):
+                self.current_group_index = index
+                return
+
+        self.current_group_index = 0
+
+    def next_group(self) -> bool:
+        """Перейти к следующей группе. ``False``, если групп больше нет."""
+
+        if self.is_finished:
+            return False
+
+        self.current_group_index += 1
+        return not self.is_finished
+
+    def previous_group(self) -> bool:
+        """Вернуться к предыдущей группе. ``False``, если это первая группа."""
+
+        if self.is_first_group:
+            return False
+
+        self.current_group_index -= 1
+        return True
+
+    def mark_modified(self) -> None:
+        """Отметить, что данные проверки изменились после последнего сохранения."""
+
         self.is_modified = True
+
+    def mark_saved(self) -> None:
+        self.is_modified = False
+
+    def reset(self) -> None:
+        """Полный сброс состояния сеанса."""
+
+        self.template = None
+        self.inspection = None
+        self.current_group_index = 0
+        self.is_modified = False

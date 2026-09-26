@@ -1,126 +1,105 @@
+"""Стартовый экран: выбор шаблона, продолжение проверки, история."""
+
+from __future__ import annotations
+
 import flet as ft
 
 from zond.ui.colors import AppColors
+from zond.ui.components.buttons import GhostButton, PrimaryButton, SecondaryButton
+from zond.ui.design import ControlSize, FontSize, Space
+from zond.ui.icons import AppIcons
+from zond.ui.screens.base_screen import AppScreen
+
+VERSION = "1.0.0"
 
 
-class UploadScreen(ft.Container):
-    """ Стартовый экран приложения. """
+class UploadScreen(AppScreen):
+    """Экран запуска приложения."""
 
-    def __init__(self, on_upload=None):
+    def compose(self) -> ft.Control:
+        stored = self.app.storage.list_stored()
+        drafts = sum(1 for entry in stored if entry.is_draft)
 
-        print("UploadScreen получил callback:", on_upload)
+        buttons: list[ft.Control] = [
+            PrimaryButton(
+                "Загрузить шаблон проверки",
+                icon=AppIcons.UPLOAD,
+                on_click=self._pick_template,
+                width=300,
+            ),
+            SecondaryButton(
+                "Открыть сохранённую проверку",
+                icon=AppIcons.OPEN,
+                on_click=self._pick_inspection,
+                width=300,
+            ),
+        ]
 
-        self.on_upload = on_upload
+        if stored:
+            label = f"История проверок ({len(stored)})"
+            if drafts:
+                label += f" · черновиков: {drafts}"
 
-        super().__init__(
+            buttons.append(GhostButton(label, icon=AppIcons.HISTORY, on_click=self._open_history))
 
-            expand=True,
-
-            alignment=ft.Alignment(0, 0),
-
-            bgcolor=AppColors.BACKGROUND,
-
-            content=self._build(),
-
-        )
-
-    async def _upload_click(self, e):
-        print("BUTTON CLICK")
-
-        await self.on_upload(e)
-
-    def _main_content(self):
-        return ft.Column(
-
+        content = ft.Column(
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-
             alignment=ft.MainAxisAlignment.CENTER,
-
-            spacing=12,
-
+            spacing=Space.MD,
             controls=[
-
                 ft.Image(
                     src="images/logo.png",
-                    width=110,
-                    height=110,
+                    width=ControlSize.LOGO,
+                    height=ControlSize.LOGO,
                     fit=ft.BoxFit.CONTAIN,
                 ),
-
-                ft.Container(height=10),
-
+                ft.Container(height=Space.SM),
                 ft.Text(
                     "ЗОНД: ECTS",
-                    size=32,
+                    size=FontSize.HERO,
                     weight=ft.FontWeight.BOLD,
                     color=AppColors.TEXT,
                 ),
-
                 ft.Text(
                     "Система проверки оборудования",
-                    size=16,
+                    size=FontSize.SUBTITLE,
                     color=AppColors.TEXT_SECONDARY,
                 ),
-
-                ft.Container(height=20),
-
-                ft.ElevatedButton(
-                    content=ft.Text(
-                        "Загрузить шаблон",
-                        size=16,
-                    ),
-                    icon=ft.Icons.UPLOAD,
-                    on_click=self._upload_click,
-
-                    style=ft.ButtonStyle(
-                        bgcolor=AppColors.PRIMARY,
-                        color=ft.Colors.WHITE,
-
-                        padding=ft.Padding(
-                            left=32,
-                            right=32,
-                            top=14,
-                            bottom=14,
-                        ),
-
-                        shape=ft.RoundedRectangleBorder(
-                            radius=12,
-                        ),
-                    ),
-                ),
-
+                ft.Container(height=Space.LG),
+                *buttons,
+                ft.Container(height=Space.SM),
                 ft.Text(
-                    "Поддерживается CSV формат",
-                    size=12,
+                    "Шаблон проверки — файл CSV",
+                    size=FontSize.CAPTION,
                     color=AppColors.TEXT_SECONDARY,
                 ),
-
             ],
         )
 
-    def _build(self):
         return ft.Stack(
-
+            expand=True,
             controls=[
-
-                ft.Container(
-                    content=self._main_content(),
-                    expand=True,
-                    alignment=ft.Alignment(0, 0),
-                ),
-
+                ft.Container(content=content, expand=True, alignment=ft.Alignment(0, 0)),
                 ft.Container(
                     content=ft.Text(
-                        "Версия 1.0.0",
-                        size=12,
+                        f"Версия {VERSION}",
+                        size=FontSize.CAPTION,
                         color=AppColors.TEXT_SECONDARY,
                     ),
+                    padding=ft.Padding(left=0, top=0, right=0, bottom=Space.MD),
                     alignment=ft.Alignment(0, 1),
                     ignore_interactions=True,
                 ),
-
             ],
-
-            expand=True,
-
         )
+
+    # ------------------------------------------------------------- обработчики
+
+    async def _pick_template(self, event) -> None:
+        await self.app.pick_template()
+
+    async def _pick_inspection(self, event) -> None:
+        await self.app.pick_inspection()
+
+    def _open_history(self, event) -> None:
+        self.app.open_history()
