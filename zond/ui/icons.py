@@ -25,6 +25,13 @@ class AppIcons:
     BACK = ft.Icons.ARROW_BACK
     NEXT = ft.Icons.ARROW_FORWARD
     ADD = ft.Icons.ADD
+    CHEVRON = ft.Icons.CHEVRON_RIGHT
+
+    HELP = ft.Icons.HELP_OUTLINE
+    SAMPLES = ft.Icons.LIBRARY_BOOKS
+    TEMPLATE = ft.Icons.DESCRIPTION_OUTLINED
+    FOLDER = ft.Icons.FOLDER_OUTLINED
+    STORAGE = ft.Icons.INSERT_DRIVE_FILE_OUTLINED
 
     SUCCESS = ft.Icons.CHECK_CIRCLE
     WARNING = ft.Icons.WARNING_AMBER_ROUNDED

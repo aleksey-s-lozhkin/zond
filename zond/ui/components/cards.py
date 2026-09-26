@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import flet as ft
 
 from zond.ui.colors import AppColors
 from zond.ui.design import FontSize, Radius, Space, StrokeWidth
+from zond.ui.icons import AppIcons
 
 
 class SectionCard(ft.Container):
@@ -154,4 +157,73 @@ class EmptyState(ft.Column):
             controls=controls,
             spacing=Space.SM,
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+        )
+
+
+class ActionCard(ft.Container):
+    """Кликабельная карточка действия: иконка, название и пояснение.
+
+    Названия вроде «Загрузить образец» ничего не говорят о том, что
+    произойдёт дальше: пользователь не знает, есть ли у него этот «образец»
+    и откуда его взять. Вторая строка отвечает на вопрос «что это», поэтому
+    на стартовом экране действия оформлены такими карточками.
+    """
+
+    def __init__(
+        self,
+        title: str,
+        subtitle: str = "",
+        icon=None,
+        on_click: Callable | None = None,
+        primary: bool = False,
+        width: int | None = None,
+    ) -> None:
+        accent = AppColors.PRIMARY if primary else AppColors.TEXT_SECONDARY
+        background = AppColors.PRIMARY_SOFT if primary else AppColors.SURFACE
+        border = AppColors.PRIMARY_BORDER if primary else AppColors.BORDER
+
+        rows: list[ft.Control] = [
+            ft.Text(
+                title,
+                size=FontSize.SUBTITLE,
+                weight=ft.FontWeight.W_600,
+                color=AppColors.PRIMARY if primary else AppColors.TEXT,
+            )
+        ]
+
+        if subtitle:
+            rows.append(
+                ft.Text(
+                    subtitle,
+                    size=FontSize.CAPTION,
+                    color=AppColors.TEXT_SECONDARY,
+                )
+            )
+
+        super().__init__(
+            width=width,
+            padding=ft.Padding(
+                left=Space.MD,
+                top=Space.MD,
+                right=Space.MD,
+                bottom=Space.MD,
+            ),
+            bgcolor=background,
+            border=ft.Border.all(StrokeWidth.HAIRLINE, border),
+            border_radius=Radius.MD,
+            ink=True,
+            on_click=on_click,
+            content=ft.Row(
+                spacing=Space.MD,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                controls=[
+                    ft.Icon(icon or AppIcons.NEXT, size=24, color=accent),
+                    ft.Column(controls=rows, spacing=2, tight=True, expand=True),
+                    ft.Icon(
+                        AppIcons.CHEVRON,
+                        size=20,
+                        color=AppColors.TEXT_DISABLED,
+                    ),
+                ],
+            ),
         )

@@ -114,6 +114,74 @@ def test_prepare_moves_data_to_documents_on_mobile(
     assert mobile_app.storage.inspections_dir.is_dir()
 
 
+def test_protocols_go_to_public_documents(
+    mobile_app: ZondApp,
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Протокол ищут в «Документах», а не в служебной папке приложения."""
+
+    documents = tmp_path / "Documents"
+    documents.mkdir()
+    monkeypatch.setattr("zond.app.app.PUBLIC_DOCUMENTS_DIR", documents)
+
+    mobile_app.storage_paths = FakeStoragePaths(
+        documents=tmp_path / "data",
+        external=tmp_path / "external",
+    )
+
+    asyncio.run(mobile_app.prepare())
+
+    assert mobile_app.storage.pdf_dir == documents / "ЗОНД"
+    assert mobile_app.storage.pdf_dir.is_dir()
+    assert mobile_app.export_hint() == "Документы/ЗОНД"
+
+    # Данные проверок остаются в каталоге приложения.
+    assert mobile_app.storage.inspections_dir.parent == tmp_path / "external" / "reports"
+
+
+def test_protocols_stay_in_app_dir_without_documents(
+    mobile_app: ZondApp,
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Если общей папки нет, протоколы не теряются."""
+
+    monkeypatch.setattr("zond.app.app.PUBLIC_DOCUMENTS_DIR", tmp_path / "нет-такой")
+
+    asyncio.run(mobile_app.prepare())
+
+    assert mobile_app.export_dir is None
+    assert mobile_app.storage.pdf_dir == mobile_app.storage.root / "pdf"
+    assert mobile_app.export_hint() == str(mobile_app.storage.pdf_dir)
+
+
+def test_documents_are_not_used_when_write_denied(
+    mobile_app: ZondApp,
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Общий каталог выбирается только после проверки записью."""
+
+    documents = tmp_path / "Documents"
+    documents.mkdir()
+    monkeypatch.setattr("zond.app.app.PUBLIC_DOCUMENTS_DIR", documents)
+    monkeypatch.setattr("zond.app.app._is_writable", lambda directory: False)
+
+    assert mobile_app._documents_export_dir() is None
+
+
+def test_desktop_keeps_project_reports(app: ZondApp, monkeypatch, tmp_path: Path) -> None:
+    documents = tmp_path / "Documents"
+    documents.mkdir()
+    monkeypatch.setattr("zond.app.app.PUBLIC_DOCUMENTS_DIR", documents)
+
+    asyncio.run(app.prepare())
+
+    assert app.export_dir is None
+    assert app.storage.pdf_dir == app.storage.root / "pdf"
+
+
 def test_android_prefers_visible_external_storage(
     mobile_app: ZondApp,
     tmp_path: Path,
@@ -442,10 +510,34 @@ def test_sample_loader_loads_template(app: ZondApp) -> None:
 
 
 def test_upload_screen_offers_samples(app: ZondApp) -> None:
+    """Действие названо так, чтобы было понятно: шаблоны уже в приложении."""
+
     screen = UploadScreen(app)
     labels = collect_texts(screen.content)
 
-    assert any("образец" in label.lower() for label in labels)
+    assert any("Готовые шаблоны" in label for label in labels)
+    assert any("уже в приложении" in label for label in labels)
+
+
+def test_upload_screen_explains_each_action(app: ZondApp) -> None:
+    """У действий есть пояснения: иначе непонятно, откуда взять файл."""
+
+    screen = UploadScreen(app)
+    labels = collect_texts(screen.content)
+
+    assert any("памяти устройства" in label for label in labels)
+    assert any("НАЧАТЬ ПРОВЕРКУ" in label for label in labels)
+    assert any("ПРОДОЛЖИТЬ" in label for label in labels)
+
+
+def test_upload_screen_links_to_help(app: ZondApp) -> None:
+    from tests.helpers import find_control
+
+    screen = UploadScreen(app)
+    labels = collect_texts(screen.content)
+
+    assert "Справка" in labels
+    assert find_control(screen, ft.TextButton) is not None
 
 
 # --------------------------------------------------------------- оболочка

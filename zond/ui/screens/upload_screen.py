@@ -1,4 +1,10 @@
-"""Стартовый экран: выбор шаблона, продолжение проверки, история."""
+"""Стартовый экран: начать проверку, продолжить прежнюю, справка.
+
+Экран намеренно построен на карточках с пояснениями, а не на голых кнопках.
+Название «Загрузить образец» само по себе не отвечает на вопрос, есть ли у
+пользователя этот образец и откуда его взять, поэтому у каждого действия есть
+вторая строка, а рядом — ссылка на справку.
+"""
 
 from __future__ import annotations
 
@@ -6,26 +12,26 @@ import flet as ft
 
 from zond.services.sample_templates import available_samples
 from zond.ui.colors import AppColors
-from zond.ui.components.buttons import GhostButton, PrimaryButton, SecondaryButton
+from zond.ui.components.cards import ActionCard
 from zond.ui.design import ControlSize, FontSize, Space
 from zond.ui.icons import AppIcons
 from zond.ui.screens.base_screen import AppScreen
 
 VERSION = "1.0.0"
 
-#: Сколько символов пути показывать на стартовом экране.
-PATH_PREVIEW_LENGTH = 46
+#: Пояснение к готовым шаблонам: главное — что их не нужно искать.
+SAMPLES_HINT = "КИП, электроустановки, охрана — уже в приложении"
 
 
-def _shorten(path) -> str:
-    """Сократить длинный путь для подписи, сохранив его конец."""
+def _section_title(text: str) -> ft.Text:
+    """Подпись группы действий."""
 
-    text = str(path)
-
-    if len(text) <= PATH_PREVIEW_LENGTH:
-        return text
-
-    return "…" + text[-(PATH_PREVIEW_LENGTH - 1) :]
+    return ft.Text(
+        text,
+        size=FontSize.CAPTION,
+        weight=ft.FontWeight.W_600,
+        color=AppColors.TEXT_SECONDARY,
+    )
 
 
 class UploadScreen(AppScreen):
@@ -34,112 +40,164 @@ class UploadScreen(AppScreen):
     def compose(self) -> ft.Control:
         stored = self.app.storage.list_stored()
         drafts = sum(1 for entry in stored if entry.is_draft)
-
-        buttons: list[ft.Control] = [
-            PrimaryButton(
-                "Загрузить шаблон проверки",
-                icon=AppIcons.UPLOAD,
-                on_click=self._pick_template,
-                width=300,
-            ),
-            SecondaryButton(
-                "Открыть сохранённую проверку",
-                icon=AppIcons.OPEN,
-                on_click=self._pick_inspection,
-                width=300,
-            ),
-        ]
-
         samples = available_samples()
 
+        start: list[ft.Control] = []
+
         if samples:
-            buttons.append(
-                GhostButton(
-                    f"Загрузить образец ({len(samples)})",
-                    icon=AppIcons.LIST,
+            start.append(
+                ActionCard(
+                    f"Готовые шаблоны ({len(samples)})",
+                    SAMPLES_HINT,
+                    icon=AppIcons.SAMPLES,
                     on_click=self._choose_sample,
+                    primary=True,
                 )
             )
 
-        if stored:
-            label = f"История проверок ({len(stored)})"
-            if drafts:
-                label += f" · черновиков: {drafts}"
-
-            buttons.append(GhostButton(label, icon=AppIcons.HISTORY, on_click=self._open_history))
-
-        content = ft.Column(
-            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-            alignment=ft.MainAxisAlignment.CENTER,
-            spacing=Space.MD,
-            controls=[
-                ft.Image(
-                    src="images/logo.png",
-                    width=ControlSize.LOGO,
-                    height=ControlSize.LOGO,
-                    fit=ft.BoxFit.CONTAIN,
-                ),
-                ft.Container(height=Space.SM),
-                ft.Text(
-                    "ЗОНД: ECTS",
-                    size=FontSize.HERO,
-                    weight=ft.FontWeight.BOLD,
-                    color=AppColors.TEXT,
-                ),
-                ft.Text(
-                    "Система проверки оборудования",
-                    size=FontSize.SUBTITLE,
-                    color=AppColors.TEXT_SECONDARY,
-                ),
-                ft.Container(height=Space.LG),
-                *buttons,
-                ft.Container(height=Space.SM),
-                ft.Text(
-                    "Шаблон проверки — файл CSV",
-                    size=FontSize.CAPTION,
-                    color=AppColors.TEXT_SECONDARY,
-                ),
-            ],
+        start.append(
+            ActionCard(
+                "Свой шаблон из файла",
+                "CSV-файл, сохранённый в памяти устройства",
+                icon=AppIcons.TEMPLATE,
+                on_click=self._pick_template,
+                primary=not samples,
+            )
         )
 
-        return ft.Stack(
+        cont: list[ft.Control] = []
+
+        if stored:
+            hint = "Черновики и готовые проверки на этом устройстве"
+
+            if drafts:
+                hint = f"Черновиков: {drafts}. Все проверки на этом устройстве"
+
+            cont.append(
+                ActionCard(
+                    f"История проверок ({len(stored)})",
+                    hint,
+                    icon=AppIcons.HISTORY,
+                    on_click=self._open_history,
+                )
+            )
+
+        cont.append(
+            ActionCard(
+                "Открыть проверку из файла",
+                "JSON-файл, полученный с другого устройства",
+                icon=AppIcons.OPEN,
+                on_click=self._pick_inspection,
+            )
+        )
+
+        return ft.Column(
             expand=True,
+            scroll=ft.ScrollMode.AUTO,
+            horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
+            spacing=0,
             controls=[
-                ft.Container(content=content, expand=True, alignment=ft.Alignment(0, 0)),
+                self._title_block(),
                 ft.Container(
+                    padding=ft.Padding(
+                        left=Space.LG,
+                        right=Space.LG,
+                        bottom=Space.LG,
+                    ),
                     content=ft.Column(
-                        spacing=2,
-                        tight=True,
-                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                        spacing=Space.SM,
                         controls=[
-                            ft.Text(
-                                "Проверки сохраняются в:",
-                                size=FontSize.CAPTION,
-                                color=AppColors.TEXT_SECONDARY,
-                            ),
-                            ft.Text(
-                                _shorten(self.app.storage.root),
-                                size=FontSize.CAPTION,
-                                color=AppColors.TEXT_SECONDARY,
-                                tooltip=str(self.app.storage.root),
-                                text_align=ft.TextAlign.CENTER,
-                            ),
-                            ft.Container(height=Space.XS),
-                            ft.Text(
-                                f"Версия {VERSION}",
-                                size=FontSize.CAPTION,
-                                color=AppColors.TEXT_SECONDARY,
-                            ),
+                            _section_title("НАЧАТЬ ПРОВЕРКУ"),
+                            *start,
+                            ft.Container(height=Space.MD),
+                            _section_title("ПРОДОЛЖИТЬ"),
+                            *cont,
                         ],
                     ),
-                    padding=ft.Padding(left=0, top=0, right=0, bottom=Space.MD),
-                    alignment=ft.Alignment(0, 1),
-                    ignore_interactions=True,
                 ),
+                self._footer(),
             ],
         )
 
-    # ------------------------------------------------------------- обработчики
+    # -------------------------------------------------------------- блоки
+
+    def _title_block(self) -> ft.Control:
+        return ft.Container(
+            padding=ft.Padding(
+                left=Space.LG,
+                top=Space.XL,
+                right=Space.LG,
+                bottom=Space.LG,
+            ),
+            content=ft.Column(
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                spacing=Space.SM,
+                controls=[
+                    ft.Image(
+                        src="images/logo.png",
+                        width=ControlSize.LOGO,
+                        height=ControlSize.LOGO,
+                        fit=ft.BoxFit.CONTAIN,
+                    ),
+                    ft.Text(
+                        "ЗОНД: ECTS",
+                        size=FontSize.HERO,
+                        weight=ft.FontWeight.BOLD,
+                        color=AppColors.TEXT,
+                    ),
+                    ft.Text(
+                        "Система проверки оборудования",
+                        size=FontSize.SUBTITLE,
+                        color=AppColors.TEXT_SECONDARY,
+                    ),
+                ],
+            ),
+        )
+
+    def _footer(self) -> ft.Control:
+        return ft.Container(
+            padding=ft.Padding(
+                left=Space.LG,
+                right=Space.LG,
+                top=Space.SM,
+                bottom=Space.LG,
+            ),
+            content=ft.Column(
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                spacing=Space.XS,
+                controls=[
+                    ft.TextButton(
+                        content=ft.Text(
+                            "Справка",
+                            size=FontSize.BODY,
+                            weight=ft.FontWeight.W_600,
+                        ),
+                        icon=AppIcons.HELP,
+                        on_click=self._open_help,
+                    ),
+                    ft.Text(
+                        "Протоколы сохраняются в:",
+                        size=FontSize.CAPTION,
+                        color=AppColors.TEXT_SECONDARY,
+                    ),
+                    ft.Text(
+                        self.app.export_hint(),
+                        size=FontSize.CAPTION,
+                        color=AppColors.TEXT_SECONDARY,
+                        text_align=ft.TextAlign.CENTER,
+                        tooltip=str(self.app.storage.pdf_dir),
+                    ),
+                    ft.Container(height=Space.XS),
+                    ft.Text(
+                        f"Версия {VERSION}",
+                        size=FontSize.CAPTION,
+                        color=AppColors.TEXT_SECONDARY,
+                    ),
+                ],
+            ),
+        )
+
+    # --------------------------------------------------------- обработчики
 
     async def _pick_template(self, event) -> None:
         await self.app.pick_template()
@@ -152,3 +210,6 @@ class UploadScreen(AppScreen):
 
     def _open_history(self, event) -> None:
         self.app.open_history()
+
+    def _open_help(self, event) -> None:
+        self.app.open_help()

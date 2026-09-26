@@ -89,11 +89,19 @@ class StoredInspection:
 class JsonStorage:
     """Хранилище проверок на файловой системе."""
 
-    def __init__(self, root: str | Path | None = None) -> None:
+    def __init__(
+        self,
+        root: str | Path | None = None,
+        pdf_dir: str | Path | None = None,
+    ) -> None:
         self.root = Path(root) if root is not None else DEFAULT_REPORTS_DIR
         self.inspections_dir = self.root / "inspections"
         self.drafts_dir = self.root / "drafts"
-        self.pdf_dir = self.root / "pdf"
+
+        #: Готовые протоколы можно складывать отдельно от рабочих данных:
+        #: на мобильных платформах это общедоступная папка «Документы»,
+        #: которую пользователь найдёт без подсказок.
+        self.pdf_dir = Path(pdf_dir) if pdf_dir is not None else self.root / "pdf"
 
     # ------------------------------------------------------------- каталоги
 

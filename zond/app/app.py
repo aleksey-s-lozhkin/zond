@@ -27,6 +27,7 @@ from zond.ui.components.dialogs import show_choice, show_confirm, show_error, sh
 from zond.ui.screens.base_screen import AppScreen
 from zond.ui.screens.check_screen import CheckScreen
 from zond.ui.screens.finish_screen import FinishScreen
+from zond.ui.screens.help_screen import HelpScreen
 from zond.ui.screens.history_screen import HistoryScreen
 from zond.ui.screens.inspection_screen import InspectionScreen
 from zond.ui.screens.upload_screen import UploadScreen
@@ -46,12 +47,36 @@ METADATA_ALIASES = {
 
 DEFAULT_WINDOW = (430, 900)
 
+#: Общедоступная папка «Документы» на Android.
+PUBLIC_DOCUMENTS_DIR = Path("/storage/emulated/0/Documents")
+
+#: Подкаталог приложения в «Документах» для готовых протоколов.
+EXPORT_DIR_NAME = "ЗОНД"
+
 #: Типы файлов для системного меню «Поделиться».
 MIME_TYPES = {
     ".pdf": "application/pdf",
     ".json": "application/json",
     ".csv": "text/csv",
 }
+
+
+def _is_writable(directory: Path) -> bool:
+    """Можно ли писать в каталог.
+
+    В общие каталоги Android писать разрешено не всякому приложению, поэтому
+    каталог не выбирается по имени, а проверяется пробной записью.
+    """
+
+    try:
+        directory.mkdir(parents=True, exist_ok=True)
+        probe = directory / ".zond-write-check"
+        probe.write_text("", encoding="utf-8")
+        probe.unlink()
+    except OSError:
+        return False
+
+    return True
 
 
 def _mime_type(path: Path) -> str:
@@ -68,6 +93,10 @@ class ZondApp:
 
         self.state = ZondState()
         self.storage = storage if storage is not None else JsonStorage()
+
+        #: Каталог, куда складываются готовые протоколы, если платформа
+        #: предоставляет общедоступную папку.
+        self.export_dir: Path | None = None
         self.template_loader = TemplateLoader()
         self.report_generator = ReportGenerator()
 
@@ -134,15 +163,63 @@ class ZondApp:
             return
 
         root = await self._mobile_data_dir()
+        export = self._documents_export_dir()
 
-        if root is None or root == self.storage.root:
+        candidate = JsonStorage(
+            root if root is not None else self.storage.root,
+            pdf_dir=export,
+        )
+
+        if candidate.root == self.storage.root and candidate.pdf_dir == self.storage.pdf_dir:
             return
 
-        self.storage = JsonStorage(root)
-        logger.info("Каталог данных для мобильной платформы: %s", root)
+        self.storage = candidate
+        self.export_dir = export
+
+        logger.info(
+            "Мобильная платформа: данные %s, протоколы %s",
+            candidate.root,
+            candidate.pdf_dir,
+        )
 
         if self.navigator.current is not None:
             self.restart()
+
+    def _documents_export_dir(self) -> Path | None:
+        """Общедоступная папка для готовых протоколов.
+
+        Протокол забирают с телефона, поэтому его лучше положить туда, где
+        пользователь ищет файлы сам. Если платформа не разрешает запись в
+        общий каталог, протоколы остаются в каталоге приложения.
+        """
+
+        if not is_android(self.page) or not PUBLIC_DOCUMENTS_DIR.is_dir():
+            return None
+
+        target = PUBLIC_DOCUMENTS_DIR / EXPORT_DIR_NAME
+
+        if _is_writable(target):
+            logger.info("Протоколы сохраняются в общий каталог: %s", target)
+            return target
+
+        logger.info(
+            "Запись в %s недоступна, протоколы останутся в каталоге приложения",
+            target,
+        )
+        return None
+
+    def export_hint(self) -> str:
+        """Короткая подпись, куда попадают готовые протоколы."""
+
+        if self.export_dir is not None:
+            return f"Документы/{self.export_dir.name}"
+
+        return str(self.storage.pdf_dir)
+
+    def open_help(self) -> None:
+        """Открыть справку."""
+
+        self.navigator.push(HelpScreen(self))
 
     async def _mobile_data_dir(self) -> Path | None:
         """Каталог для данных проверок на мобильной платформе.
