@@ -130,10 +130,10 @@ order,name,label,type,group,required,options,placeholder,description,unit
 
 ```json
 {
-  "format_version": 2,
+  "format_version": 3,
   "inspection_id": "befba306aebe47b6bcadcf0f0e552d38",
   "object_name": "Насос Н-12",
-  "inspector": "Иванов И.И.",
+  "executor": "Иванов И.И.",
   "started_at": "2026-08-11T07:17:07.206313+00:00",
   "finished_at": "2026-08-11T07:41:12.918005+00:00",
   "template": {
@@ -161,6 +161,9 @@ order,name,label,type,group,required,options,placeholder,description,unit
 }
 ```
 
-Файлы формата `format_version: 1` (первая версия приложения) при загрузке
-конвертируются в текущий формат: поля восстанавливаются по именам, группировка
-теряется, о чём добавляется предупреждение.
+Файлы прежних форматов при загрузке конвертируются в текущий:
+
+* `format_version: 1` — поля восстанавливаются по именам, группировка теряется,
+  о чём добавляется предупреждение;
+* `format_version: 2` — ключ исполнителя `inspector` переносится в `executor`,
+  перенос без потерь, поэтому предупреждение не добавляется.
