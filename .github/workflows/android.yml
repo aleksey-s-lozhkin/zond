@@ -65,12 +65,21 @@ jobs:
 
       # По тегу APK прикрепляется к релизу: оттуда его можно скачать и
       # установить на телефон без учётной записи GitHub.
+      #
+      # Релиз мог быть создан вручную — тогда тег уже существует, и запуск
+      # состоялся именно из-за него. Создавать релиз повторно нельзя, поэтому
+      # файл в этом случае заменяется в существующем.
       - name: Публикация релиза
         if: startsWith(github.ref, 'refs/tags/')
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${GITHUB_REF_NAME}" \
-            build/apk/*.apk \
-            --title "${GITHUB_REF_NAME}" \
-            --generate-notes
+          if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            echo "Релиз уже есть — заменяем прикреплённый файл"
+            gh release upload "${GITHUB_REF_NAME}" build/apk/*.apk --clobber
+          else
+            gh release create "${GITHUB_REF_NAME}" \
+              build/apk/*.apk \
+              --title "${GITHUB_REF_NAME}" \
+              --generate-notes
+          fi
