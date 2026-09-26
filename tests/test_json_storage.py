@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from zond.models.inspection import utcnow
+from zond.models.inspection import FORMAT_VERSION, utcnow
 from zond.services.errors import StorageError
 from zond.services.inspection_factory import InspectionFactory
 from zond.services.json_storage import JsonStorage
@@ -44,7 +44,7 @@ def test_saved_file_is_valid_utf8_json(store: JsonStorage, inspection) -> None:
     payload = json.loads(path.read_text(encoding="utf-8"))
 
     assert payload["object_name"] == "Насос Н-12"
-    assert payload["format_version"] == 3
+    assert payload["format_version"] == FORMAT_VERSION
 
 
 def test_cyrillic_is_not_escaped(store: JsonStorage, inspection) -> None:

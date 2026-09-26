@@ -8,6 +8,7 @@ from pathlib import Path
 
 from tests.helpers import complete_inspection, fill_screen, sample_value
 from zond.app.app import ZondApp
+from zond.models.inspection import FORMAT_VERSION
 from zond.services.json_storage import JsonStorage
 from zond.ui.screens.base_screen import AppScreen
 from zond.ui.screens.check_screen import CheckScreen
@@ -63,7 +64,7 @@ def test_finished_inspection_is_saved_to_disk(
     payload = json.loads(saved[0].read_text(encoding="utf-8"))
 
     assert payload["finished_at"] is not None
-    assert payload["format_version"] == 3
+    assert payload["format_version"] == FORMAT_VERSION
     assert len(payload["template"]["fields"]) == 12
     assert all(item["value"] is not None for item in payload["items"])
 

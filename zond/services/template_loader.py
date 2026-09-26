@@ -36,6 +36,7 @@ class TemplateLoader:
             name=name or path.stem,
             fields=result.fields,
             warnings=list(result.warnings),
+            source_path=str(path),
         )
 
         logger.info(

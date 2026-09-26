@@ -65,6 +65,14 @@ PROBLEM_ANSWERS = frozenset(
     }
 )
 
+#: Итог работы с замечанием, выявленным в прошлый раз.
+RESOLVED = "Устранено"
+NOT_RESOLVED = "Не устранено"
+NOT_CHECKED = "Не проверялось"
+
+#: Варианты для поля «состояние замечания».
+RESOLUTION_OPTIONS = (RESOLVED, NOT_RESOLVED, NOT_CHECKED)
+
 #: Ответы, которые не являются ни соответствием, ни нарушением.
 NEUTRAL_ANSWERS = frozenset({"не применимо", "не требуется", "", "—", "-"})
 

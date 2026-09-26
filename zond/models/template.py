@@ -16,6 +16,10 @@ class Template:
     fields: list[Field] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
 
+    #: Путь к CSV-файлу, из которого загружен шаблон. Нужен, чтобы отправить
+    #: шаблон другому человеку: в самой модели полей исходный файл не хранится.
+    source_path: str = ""
+
     @property
     def groups(self) -> list[str]:
         """Названия групп в порядке первого появления."""

@@ -8,11 +8,11 @@ from uuid import uuid4
 
 from zond.models.inspection_item import InspectionItem
 from zond.models.template import Template
-from zond.models.verdict import Verdict, classify
+from zond.models.verdict import RESOLVED, Verdict, classify, is_problem
 from zond.services.errors import StorageError
 
 #: Текущая версия формата файла проверки.
-FORMAT_VERSION = 3
+FORMAT_VERSION = 4
 
 #: Группа, в которую попадают поля при миграции файлов версии 1.
 LEGACY_GROUP = "Без группы"
@@ -69,6 +69,10 @@ class Inspection:
     started_at: datetime = field(default_factory=utcnow)
     finished_at: datetime | None = None
     items: list[InspectionItem] = field(default_factory=list)
+
+    #: Проверка, с которой перенесены значения. Пусто у первой проверки
+    #: объекта и у проверок, начатых с нуля.
+    previous_inspection_id: str = ""
 
     # ------------------------------------------------------------------ поиск
 
@@ -132,6 +136,47 @@ class Inspection:
         return self.finished_at is not None
 
     # ------------------------------------------------------- оценка ответов
+
+    @property
+    def previous_defects(self) -> list[InspectionItem]:
+        """Замечания, выявленные в предыдущей проверке.
+
+        Замечанием считается поле, значение которого в прошлый раз
+        классифицировано как несоответствие. Формулировки задаёт шаблон,
+        поэтому используется общая классификация ответов.
+        """
+
+        return [
+            item for item in self.items if item.has_previous and is_problem(item.previous_value)
+        ]
+
+    @property
+    def pending_resolutions(self) -> list[InspectionItem]:
+        """Замечания, по которым проверяющий ещё не принял решение."""
+
+        return [item for item in self.previous_defects if item.needs_resolution]
+
+    @property
+    def resolved_defects(self) -> list[InspectionItem]:
+        """Замечания, отмеченные как устранённые."""
+
+        return [item for item in self.previous_defects if item.resolution == RESOLVED]
+
+    @property
+    def changed_items(self) -> list[InspectionItem]:
+        """Поля, значение которых отличается от предыдущей проверки."""
+
+        return [
+            item
+            for item in self.items
+            if item.has_previous and str(item.value or "") != str(item.previous_value or "")
+        ]
+
+    @property
+    def is_repeat(self) -> bool:
+        """Начата ли проверка на основе предыдущей."""
+
+        return bool(self.previous_inspection_id)
 
     @property
     def problems(self) -> list[InspectionItem]:
@@ -204,6 +249,7 @@ class Inspection:
             "executor": self.executor,
             "started_at": self.started_at.isoformat(),
             "finished_at": self.finished_at.isoformat() if self.finished_at else None,
+            "previous_inspection_id": self.previous_inspection_id,
             "template": self.template.to_dict(),
             "items": [item.to_dict() for item in self.items],
         }
@@ -255,11 +301,13 @@ class Inspection:
             started_at=parse_datetime(data.get("started_at")) or utcnow(),
             finished_at=parse_datetime(data.get("finished_at")),
             items=items,
+            previous_inspection_id=str(data.get("previous_inspection_id") or ""),
         )
 
-        # Формат 2 отличается от 3 только именем ключа исполнителя — перенос
-        # без потерь, поэтому предупреждаем лишь о миграции с формата 1, где
-        # теряются подписи полей и группировка.
+        # Формат 2 отличается от 3 именем ключа исполнителя, формат 4 от 3 —
+        # ключами повторной проверки. Оба переноса идут без потерь, поэтому
+        # предупреждаем лишь о миграции с формата 1, где теряются подписи полей
+        # и группировка.
         if version < 2:
             inspection.template.warnings.append(
                 f"Файл формата {version} загружен с миграцией до {FORMAT_VERSION}: "

@@ -17,6 +17,15 @@ class InspectionItem:
     comment: str = ""
     is_checked: bool = False
 
+    #: Значение из предыдущей проверки того же объекта. Заполняется только при
+    #: повторной проверке и только если в прошлый раз поле было заполнено:
+    #: ``None`` означает, что переносить было нечего.
+    previous_value: object | None = None
+
+    #: Состояние замечания, выявленного в прошлый раз: устранено, не устранено
+    #: или не проверялось. Пусто у полей, которые замечаниями не были.
+    resolution: str = ""
+
     @property
     def is_empty(self) -> bool:
         """Считается ли поле незаполненным.
@@ -54,30 +63,55 @@ class InspectionItem:
 
         return text
 
+    @property
+    def has_previous(self) -> bool:
+        """Было ли что переносить из предыдущей проверки.
+
+        Пустая строка значением не считается: переносить из неё нечего.
+        Для флажка значение ``False`` — это ответ, а не пустота.
+        """
+
+        if self.previous_value is None:
+            return False
+
+        if isinstance(self.previous_value, bool):
+            return True
+
+        return str(self.previous_value).strip() != ""
+
+    @property
+    def needs_resolution(self) -> bool:
+        """Ждёт ли замечание решения проверяющего."""
+
+        return self.has_previous and not self.resolution
+
     def to_dict(self) -> dict:
-        return {
+        payload = {
             "field": self.field.name,
             "value": self.value,
             "comment": self.comment,
             "is_checked": self.is_checked,
         }
 
+        # Ключи повторной проверки пишем только когда они есть: файлы обычных
+        # проверок не должны обрастать полями с пустыми значениями.
+        if self.previous_value is not None:
+            payload["previous_value"] = self.previous_value
+
+        if self.resolution:
+            payload["resolution"] = self.resolution
+
+        return payload
+
     @classmethod
     def from_dict(cls, data: dict, field: Field) -> InspectionItem:
-        value = data.get("value")
-
-        # JSON не различает типы строго, поэтому для флажка приводим значение
-        # к bool, а для остальных типов — к строке.
-        if field.type.value == "checkbox":
-            value = bool(value)
-        elif value is not None:
-            value = str(value)
-
         return cls(
             field=field,
-            value=value,
+            value=_coerce(field, data.get("value")),
             comment=str(data.get("comment") or ""),
             is_checked=bool(data.get("is_checked", False)),
+            previous_value=_coerce(field, data.get("previous_value")),
+            resolution=str(data.get("resolution") or ""),
         )
 
 
@@ -94,3 +128,19 @@ def _humanize_temporal(field_type: FieldType, text: str) -> str:
         return text
 
     return text
+
+
+def _coerce(field: Field, value: object) -> object | None:
+    """Привести значение из JSON к типу поля.
+
+    JSON не различает типы строго, поэтому для флажка значение приводится к
+    ``bool``, а для остальных типов — к строке.
+    """
+
+    if value is None:
+        return None
+
+    if field.type.value == "checkbox":
+        return bool(value)
+
+    return str(value)
