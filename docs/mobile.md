@@ -327,8 +327,8 @@ GitHub. Ссылка на APK должна скачиваться: значит,
 | Что | Ссылка | Размер |
 |---|---|---|
 | Страница выпуска | `https://github.com/aleksey-s-lozhkin/zond/releases/latest` | — |
-| Основной файл | `https://github.com/aleksey-s-lozhkin/zond/releases/latest/download/zond-ects.apk` | ≈70 МБ |
-| Для старых телефонов | `https://github.com/aleksey-s-lozhkin/zond/releases/latest/download/zond-ects-universal.apk` | ≈153 МБ |
+| Основной файл | `https://github.com/aleksey-s-lozhkin/zond/releases/latest/download/zond-ects.apk` | 65 МБ |
+| Для старых телефонов | `https://github.com/aleksey-s-lozhkin/zond/releases/latest/download/zond-ects-universal.apk` | 153 МБ |
 
 Первую удобнее открыть на телефоне: видно описание и файл. Остальные скачивают
 сразу, без лишних нажатий.
