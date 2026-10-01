@@ -12,13 +12,19 @@
 #
 # Запуск:
 #     bash tools/build_apk.sh
+#     bash tools/build_apk.sh --arch arm64-v8a   # только под arm64
+#     bash tools/build_apk.sh --split-per-abi    # отдельный файл на архитектуру
+#
+# Дополнительные аргументы передаются в flet build без изменений.
 #
 # Готовый файл: build/apk/zond-ects.apk — его можно ставить поверх
 # установленного приложения, как и файл из релиза.
 
 set -euo pipefail
 
-INFO="${1:-$HOME/zond-signing/данные-ключа.txt}"
+# Путь к файлу с паролями задаётся переменной окружения, а не аргументом:
+# остальные аргументы уходят в сборку.
+INFO="${ZOND_SIGNING_INFO:-$HOME/zond-signing/данные-ключа.txt}"
 KEYSTORE="$HOME/zond-signing/zond-upload.jks"
 
 if [ ! -f "$KEYSTORE" ]; then
@@ -74,4 +80,4 @@ if [ -z "$FLET" ]; then
     exit 1
 fi
 
-"$FLET" build apk --yes
+"$FLET" build apk --yes "$@"
