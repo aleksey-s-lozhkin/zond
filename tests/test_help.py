@@ -62,7 +62,8 @@ def test_help_explains_where_protocols_go(app: ZondApp) -> None:
     texts = help_texts(app)
 
     assert "Куда сохраняются протоколы" in texts
-    assert any("Поделиться" in text for text in texts)
+    assert any("Отправить PDF" in text for text in texts)
+    assert any("меню" in text for text in texts)
     assert app.export_hint() in texts
 
 
