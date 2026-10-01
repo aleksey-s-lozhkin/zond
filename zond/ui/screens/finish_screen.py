@@ -102,8 +102,13 @@ class FinishScreen(AppScreen):
 
         buttons: list[ft.Control] = [
             PrimaryButton(
-                "Сформировать PDF" if not pdf_exists else "Обновить PDF",
+                "Сформировать" if not pdf_exists else "Обновить",
                 icon=AppIcons.PDF,
+                tooltip=(
+                    "Сформировать протокол PDF"
+                    if not pdf_exists
+                    else "Сформировать протокол PDF заново"
+                ),
                 on_click=self._make_pdf,
                 expand=True,
             )
@@ -112,11 +117,17 @@ class FinishScreen(AppScreen):
         if pdf_exists:
             buttons.append(
                 SecondaryButton(
-                    # На телефоне система не открывает file:// другим
-                    # приложением: протокол уходит в меню «Поделиться».
-                    # Называть это «Открыть» — обещать не то.
+                    # Android не даёт приложению открыть файл чужими
+                    # средствами: ссылку file:// система не принимает с
+                    # 24-й версии. Проверено на устройстве — открыть не
+                    # получается, файл уходит в меню «Поделиться». Поэтому
+                    # кнопка называется тем, что действительно произойдёт.
                     "Отправить PDF" if is_mobile(self.app.page) else "Открыть PDF",
-                    icon=AppIcons.OPEN,
+                    icon=AppIcons.SHARE,
+                    tooltip=(
+                        "Протокол лежит в «Документы/ЗОНД/Протоколы». "
+                        "На телефоне он открывается из меню «Поделиться»."
+                    ),
                     on_click=self._open_pdf,
                     expand=True,
                 )

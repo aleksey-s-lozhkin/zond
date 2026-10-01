@@ -11,10 +11,10 @@ class Space:
 
     XS = 4
     SM = 8
-    MD = 16
-    LG = 24
-    XL = 32
-    XXL = 48
+    MD = 12
+    LG = 16
+    XL = 24
+    XXL = 32
 
 
 @dataclass(frozen=True)
@@ -31,21 +31,24 @@ class Radius:
 class FontSize:
     """Размеры шрифта."""
 
-    CAPTION = 12
-    BODY = 14
-    SUBTITLE = 16
-    TITLE = 22
-    HERO = 30
+    CAPTION = 11
+    BODY = 13
+    #: Подписи кнопок: крупнее основного текста, но не настолько, чтобы
+    #: слово перестало помещаться в кнопку и рвалось посередине.
+    BUTTON = 14
+    SUBTITLE = 15
+    TITLE = 19
+    HERO = 26
 
 
 @dataclass(frozen=True)
 class ControlSize:
     """Размеры элементов управления."""
 
-    BUTTON_HEIGHT = 52
-    INPUT_HEIGHT = 48
-    ICON = 64
-    LOGO = 110
+    BUTTON_HEIGHT = 46
+    INPUT_HEIGHT = 42
+    ICON = 56
+    LOGO = 92
     PROGRESS_BAR = 6
 
 

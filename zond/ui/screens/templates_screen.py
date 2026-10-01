@@ -264,7 +264,7 @@ class TemplatesScreen(AppScreen):
                 expand=True,
             ),
             PrimaryButton(
-                "Добавить из файла",
+                "Добавить",
                 icon=AppIcons.ADD,
                 on_click=self._add,
                 expand=True,

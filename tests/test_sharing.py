@@ -119,11 +119,16 @@ def icon_buttons(control) -> list[ft.IconButton]:
     return found
 
 
-def test_report_button_says_send_on_mobile(
+def test_report_button_says_open_on_mobile(
     mobile_app: ZondApp,
     sample_template: Path,
 ) -> None:
-    """На телефоне система не открывает file:// — файл уходит в «Поделиться»."""
+    """Кнопка называет действие, а не запасной путь.
+
+    На телефоне приложение сначала пытается открыть протокол программой
+    просмотра и только потом уходит в меню «Поделиться», поэтому «Открыть»
+    здесь честнее прежнего «Отправить».
+    """
 
     mobile_app.start()
     stub_picker(mobile_app, sample_template)

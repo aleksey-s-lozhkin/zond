@@ -93,7 +93,10 @@ class FakeUrlLauncher:
 
     def __init__(self) -> None:
         self.urls: list[str] = []
-        self.can_launch = True
+        #: По умолчанию считаем, что система файл открыть не может: именно
+        #: так ведёт себя Android со ссылкой file://. Тест, где система
+        #: умеет открывать, выставляет это вручную.
+        self.can_launch = False
 
     async def can_launch_url(self, url) -> bool:
         return self.can_launch

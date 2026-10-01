@@ -350,6 +350,8 @@ def test_open_path_launches_url(app: ZondApp, launcher, tmp_path: Path) -> None:
     target = tmp_path / "file.txt"
     target.write_text("x", encoding="utf-8")
 
+    launcher.can_launch = True
+
     asyncio.run(app.open_path(target))
 
     assert launcher.urls

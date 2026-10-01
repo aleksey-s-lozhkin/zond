@@ -16,6 +16,8 @@ class AppIcons:
 
     UPLOAD = ft.Icons.UPLOAD_FILE
     OPEN = ft.Icons.FOLDER_OPEN
+    #: Открыть файл программой просмотра — не путать с папкой.
+    OPEN_FILE = ft.Icons.OPEN_IN_NEW
     HISTORY = ft.Icons.HISTORY
     SAVE = ft.Icons.SAVE_OUTLINED
     PDF = ft.Icons.PICTURE_AS_PDF

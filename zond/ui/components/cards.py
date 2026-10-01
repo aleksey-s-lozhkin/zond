@@ -35,7 +35,7 @@ class SectionCard(ft.Container):
             header: list[ft.Control] = []
 
             if icon is not None:
-                header.append(ft.Icon(icon, size=20, color=AppColors.PRIMARY))
+                header.append(ft.Icon(icon, size=18, color=AppColors.PRIMARY))
 
             header.append(
                 ft.Text(
@@ -76,11 +76,11 @@ class InfoRow(ft.Row):
         self,
         label: str,
         value: str,
-        label_width: int = 150,
+        label_width: int = 116,
         value_color: str = AppColors.TEXT,
         emphasize: bool = False,
         tooltip: str | None = None,
-        max_lines: int | None = None,
+        max_lines: int = 2,
     ) -> None:
         super().__init__(
             spacing=Space.MD,
@@ -92,6 +92,10 @@ class InfoRow(ft.Row):
                         label,
                         size=FontSize.BODY,
                         color=AppColors.TEXT_SECONDARY,
+                        # Без ограничения подпись переносится посередине слова:
+                        # «Обязательны / х». Лучше оборвать с многоточием.
+                        max_lines=2,
+                        overflow=ft.TextOverflow.ELLIPSIS,
                     ),
                 ),
                 ft.Text(
@@ -103,7 +107,7 @@ class InfoRow(ft.Row):
                     selectable=True,
                     tooltip=tooltip,
                     max_lines=max_lines,
-                    overflow=(ft.TextOverflow.ELLIPSIS if max_lines is not None else None),
+                    overflow=ft.TextOverflow.ELLIPSIS,
                 ),
             ],
         )

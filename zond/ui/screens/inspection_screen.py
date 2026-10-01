@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import flet as ft
 
+from zond.models.verdict import is_problem
 from zond.ui.colors import AppColors
 from zond.ui.components.buttons import PrimaryButton, SecondaryButton
 from zond.ui.components.cards import EmptyState
-from zond.ui.components.dialogs import show_error
+from zond.ui.components.dialogs import show_confirm, show_error
 from zond.ui.components.headers import ScreenHeader
 from zond.ui.components.layout import ActionBar, ScreenBody
 from zond.ui.components.progress import ProgressWidget
@@ -37,6 +38,7 @@ class InspectionScreen(AppScreen):
 
         for field in state.current_fields:
             item = inspection.get_item(field.name)
+            problem = item is not None and item.has_previous and is_problem(item.previous_value)
 
             self.field_controls.append(
                 FieldControl(
@@ -44,6 +46,14 @@ class InspectionScreen(AppScreen):
                     value=item.value if item is not None else None,
                     on_change=self._field_changed,
                     page=self.app.page,
+                    previous_text=item.display_previous() if problem else "",
+                    previous_problem=problem,
+                    resolution=item.resolution if item is not None else "",
+                    on_resolution=(
+                        (lambda value, name=field.name: self._set_resolution(name, value))
+                        if problem
+                        else None
+                    ),
                 )
             )
 
@@ -125,6 +135,23 @@ class InspectionScreen(AppScreen):
         )
 
     # ------------------------------------------------------------- обработчики
+
+    def _set_resolution(self, name: str, value: str) -> None:
+        """Отметить, устранено ли прежнее замечание."""
+
+        inspection = self.app.state.inspection
+
+        if inspection is None:
+            return
+
+        item = inspection.get_item(name)
+
+        if item is None:
+            return
+
+        item.resolution = value
+        self.app.state.mark_modified()
+        self.app.save_draft()
 
     def _field_changed(self, control: FieldControl) -> None:
         """Сохранить значение поля в проверку и обновить прогресс."""
@@ -224,6 +251,22 @@ class InspectionScreen(AppScreen):
 
             self.app.state.goto_first_incomplete_group()
             self.refresh()
+            return
+
+        # Отдельного шага разбора замечаний больше нет, поэтому о
+        # неразобранных напоминаем перед завершением: в протокол они попадут
+        # как неустранённые, и это стоит подтвердить осознанно.
+        pending = inspection.pending_resolutions
+
+        if pending:
+            show_confirm(
+                self.app.page,
+                "Остались неразобранные замечания",
+                f"Не отмечено состояние по замечаниям прошлой проверки: "
+                f"{len(pending)}. В протокол они попадут как неустранённые.",
+                on_confirm=lambda event: self.app.finish_inspection(),
+                confirm_text="Завершить",
+            )
             return
 
         self.app.finish_inspection()

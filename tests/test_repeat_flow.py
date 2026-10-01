@@ -14,9 +14,8 @@ import flet as ft
 
 from tests.helpers import collect_texts, complete_inspection, sample_value
 from zond.app.app import ZondApp
-from zond.models.verdict import NOT_RESOLVED, RESOLVED
+from zond.models.verdict import RESOLVED
 from zond.ui.screens.check_screen import REPEAT_NONE
-from zond.ui.screens.defects_screen import DefectsScreen
 from zond.ui.screens.finish_screen import FinishScreen
 from zond.ui.screens.inspection_screen import InspectionScreen
 
@@ -207,22 +206,20 @@ def test_start_button_label_changes_with_selection(
 
     screen = app.navigator.current
 
-    assert screen.start_button.content.value == "Начать проверку"
+    assert screen.start_button.content.value == "Начать"
 
     screen.repeat_group.value = previous.inspection_id
     screen._choose_repeat(None)
 
-    assert screen.start_button.content.value == "Начать с прошлой"
+    assert screen.start_button.content.value == "С прошлой"
 
 
 # -------------------------------------------------------- разбор замечаний
 
 
-def test_defects_screen_opens_before_the_form(
-    app: ZondApp,
-    sample_template: Path,
-    choose_file,
-) -> None:
+def open_repeat(app: ZondApp, sample_template: Path, choose_file) -> None:
+    """Выбрать прошлую проверку и начать повторную."""
+
     previous = prepare_previous(app, sample_template, choose_file)
     load_template(app, sample_template, choose_file)
 
@@ -230,83 +227,110 @@ def test_defects_screen_opens_before_the_form(
     screen.repeat_group.value = previous.inspection_id
     screen._start(None)
 
-    assert isinstance(app.navigator.current, DefectsScreen)
+
+def defect_texts(screen) -> list[str]:
+    return [
+        label
+        for label in collect_texts(screen.content)
+        if "Замечание прошлой проверки" in label or label.startswith("Было:")
+    ]
 
 
-def test_defects_screen_shows_previous_answer(
+def test_repeat_opens_the_form_itself(
     app: ZondApp,
     sample_template: Path,
     choose_file,
 ) -> None:
-    previous = prepare_previous(app, sample_template, choose_file)
-    load_template(app, sample_template, choose_file)
+    """Замечания разбираются прямо в форме, отдельного шага нет.
 
-    screen = app.navigator.current
-    screen.repeat_group.value = previous.inspection_id
-    screen._start(None)
+    Отдельный экран заставлял проходить шаблон дважды: сначала разобрать
+    замечания, потом заполнить форму.
+    """
 
-    labels = collect_texts(app.navigator.current.content)
-
-    assert any("Требует ремонта" in label for label in labels)
-    assert any("Осталось разобрать" in label for label in labels)
-
-
-def test_continue_is_blocked_until_all_resolved(
-    app: ZondApp,
-    sample_template: Path,
-    choose_file,
-) -> None:
-    previous = prepare_previous(app, sample_template, choose_file)
-    load_template(app, sample_template, choose_file)
-
-    check = app.navigator.current
-    check.repeat_group.value = previous.inspection_id
-    check._start(None)
-
-    screen = app.navigator.current
-
-    assert screen.continue_button.disabled
-
-    for name, selector in screen.selectors.items():
-        selector.value = RESOLVED
-        screen._choose(name, _event(RESOLVED))
-
-    assert not screen.continue_button.disabled
-
-    screen._continue(None)
+    open_repeat(app, sample_template, choose_file)
 
     assert isinstance(app.navigator.current, InspectionScreen)
+
+
+def test_form_shows_the_whole_template(
+    app: ZondApp,
+    sample_template: Path,
+    choose_file,
+) -> None:
+    """Открывается весь шаблон, а не только несоответствия."""
+
+    open_repeat(app, sample_template, choose_file)
+
+    template = app.state.template
+
+    assert len(app.state.current_fields) == len(template.fields_in_group(template.groups[0]))
+
+
+def test_previous_defect_is_shown_on_its_field(
+    app: ZondApp,
+    sample_template: Path,
+    choose_file,
+) -> None:
+    open_repeat(app, sample_template, choose_file)
+
+    # Поле «Состояние» лежит не в первой группе: доходим до неё.
+    screen = app.navigator.current
+    seen: list[str] = []
+    guard = 0
+
+    while not seen and guard < 20:
+        guard += 1
+        seen = defect_texts(screen)
+
+        if isinstance(app.navigator.current, FinishScreen):
+            break
+
+        screen._go_next(None)
+        screen = app.navigator.current
+
+        if not isinstance(screen, InspectionScreen):
+            break
+
+    assert seen, "замечание прошлой проверки не показано"
+    # Именно значение, а не ссылка на метод: подсказка собирается из строки.
+    assert any(label == "Было: Требует ремонта" for label in seen), seen
+    assert not any("bound method" in label for label in seen)
+
+
+def test_resolution_is_set_from_the_form(
+    app: ZondApp,
+    sample_template: Path,
+    choose_file,
+) -> None:
+    open_repeat(app, sample_template, choose_file)
+
+    screen = app.navigator.current
+    screen._set_resolution("condition", RESOLVED)
+
     assert app.state.inspection.get_item("condition").resolution == RESOLVED
 
 
-def test_partial_resolution_keeps_button_disabled(
+def test_unresolved_defect_does_not_block_the_form(
     app: ZondApp,
     sample_template: Path,
     choose_file,
 ) -> None:
-    """Пока есть неразобранное замечание, дальше не пускаем."""
+    """Форма открывается сразу: заполнять её можно и до разбора замечаний."""
 
-    previous = prepare_previous(app, sample_template, choose_file)
-    load_template(app, sample_template, choose_file)
+    open_repeat(app, sample_template, choose_file)
 
-    check = app.navigator.current
-    check.repeat_group.value = previous.inspection_id
-    check._start(None)
+    inspection = app.state.inspection
 
-    screen = app.navigator.current
-    names = list(screen.selectors)
-
-    screen._choose(names[0], _event(NOT_RESOLVED))
-
-    assert screen.continue_button.disabled
+    assert inspection.pending_resolutions, "замечания должны быть неразобраны"
+    assert isinstance(app.navigator.current, InspectionScreen)
 
 
-def test_no_defects_screen_when_previous_is_clean(
+def test_clean_previous_has_no_defect_block(
     app: ZondApp,
     sample_template: Path,
     choose_file,
 ) -> None:
-    """Если замечаний не было, лишний шаг не показывается."""
+    """Если замечаний не было, подсказок о них тоже нет."""
 
     load_template(app, sample_template, choose_file)
     app.start_inspection("Насос Н-12", "Иванов И.И.")
@@ -320,7 +344,10 @@ def test_no_defects_screen_when_previous_is_clean(
     check.repeat_group.value = previous.inspection_id
     check._start(None)
 
-    assert isinstance(app.navigator.current, InspectionScreen)
+    screen = app.navigator.current
+
+    assert isinstance(screen, InspectionScreen)
+    assert defect_texts(screen) == []
 
 
 def test_repeat_values_are_visible_in_the_form(
@@ -328,27 +355,11 @@ def test_repeat_values_are_visible_in_the_form(
     sample_template: Path,
     choose_file,
 ) -> None:
-    """После разбора замечаний форма открывается с прошлыми ответами."""
+    """Прошлые ответы подставлены, править нужно только изменившееся."""
 
-    previous = prepare_previous(app, sample_template, choose_file)
-    load_template(app, sample_template, choose_file)
+    open_repeat(app, sample_template, choose_file)
 
-    check = app.navigator.current
-    check.repeat_group.value = previous.inspection_id
-    check._start(None)
-
-    review = app.navigator.current
-
-    for name, selector in review.selectors.items():
-        selector.value = RESOLVED
-        review._choose(name, _event(RESOLVED))
-
-    review._continue(None)
-
-    # Поле «Состояние» лежит в другой группе, поэтому смотрим саму проверку,
-    # а не контролы первого шага формы.
     assert app.state.inspection.get_item("condition").value == "Требует ремонта"
-    assert app.state.inspection.get_item("condition").resolution == RESOLVED
 
 
 # ------------------------------------------------------------------ утилиты

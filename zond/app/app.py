@@ -27,7 +27,6 @@ from zond.ui.components.dialogs import (
 )
 from zond.ui.screens.base_screen import AppScreen
 from zond.ui.screens.check_screen import CheckScreen
-from zond.ui.screens.defects_screen import DefectsScreen
 from zond.ui.screens.finish_screen import FinishScreen
 from zond.ui.screens.help_screen import HelpScreen
 from zond.ui.screens.history_screen import HistoryScreen
@@ -603,10 +602,6 @@ class ZondApp:
         self.state.mark_modified()
         self.save_draft()
 
-        if inspection.pending_resolutions:
-            self.navigator.push(DefectsScreen(self))
-            return
-
         self.navigator.push(InspectionScreen(self))
 
     async def share_template(self) -> None:
@@ -737,6 +732,10 @@ class ZondApp:
             return
 
         if is_mobile(self.page):
+            # Android не принимает ссылку file:// с 24-й версии, поэтому
+            # открыть файл чужими средствами приложение не может: проверено
+            # на устройстве, система отвечает отказом. Файл уходит в меню
+            # «Поделиться» — оттуда его открывают или отправляют.
             await self._share_file(target)
             return
 

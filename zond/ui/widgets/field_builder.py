@@ -15,8 +15,10 @@ from datetime import date, datetime, time
 import flet as ft
 
 from zond.models.field import Field, FieldType
+from zond.models.verdict import RESOLUTION_OPTIONS
 from zond.ui.colors import AppColors
 from zond.ui.design import FontSize, Radius, Space
+from zond.ui.icons import AppIcons
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +48,10 @@ class FieldControl(ft.Column):
         value: object | None = None,
         on_change: Callable[[FieldControl], None] | None = None,
         page: ft.Page | None = None,
+        previous_text: str = "",
+        previous_problem: bool = False,
+        resolution: str = "",
+        on_resolution: Callable[[str], None] | None = None,
     ) -> None:
         super().__init__(
             spacing=Space.XS,
@@ -56,10 +62,18 @@ class FieldControl(ft.Column):
         self.field = field
         self._on_change = on_change
         self._page = page
+        self._resolution = resolution
+        self._on_resolution = on_resolution
 
         self.input: ft.Control = self._create_input(value)
 
         controls: list[ft.Control] = []
+
+        # Замечание прошлой проверки показывается прямо у поля: на повторном
+        # выезде править нужно именно его, и разбирать замечания отдельным
+        # экраном — значит заставлять проходить шаблон дважды.
+        if previous_problem:
+            controls.append(self._defect_block(previous_text))
 
         if field.type is not FieldType.CHECKBOX:
             controls.append(self._build_label())
@@ -78,6 +92,58 @@ class FieldControl(ft.Column):
         self.controls = controls
 
     # ------------------------------------------------------------- разметка
+
+    def _defect_block(self, previous_text: str) -> ft.Control:
+        """Напоминание о замечании прошлой проверки и его разбор."""
+
+        rows: list[ft.Control] = [
+            ft.Row(
+                spacing=Space.XS,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                controls=[
+                    ft.Icon(AppIcons.WARNING, size=16, color=AppColors.ERROR),
+                    ft.Text(
+                        "Замечание прошлой проверки",
+                        size=FontSize.CAPTION,
+                        weight=ft.FontWeight.W_600,
+                        color=AppColors.ERROR,
+                        expand=True,
+                    ),
+                ],
+            ),
+            ft.Text(
+                f"Было: {previous_text}",
+                size=FontSize.CAPTION,
+                color=AppColors.TEXT_SECONDARY,
+            ),
+        ]
+
+        if self._on_resolution is not None:
+            rows.append(
+                ft.Dropdown(
+                    options=[ft.dropdown.Option(option) for option in RESOLUTION_OPTIONS],
+                    value=self._resolution or None,
+                    hint_text="Что сейчас",
+                    text_size=FontSize.BODY,
+                    border_radius=Radius.SM,
+                    filled=True,
+                    fill_color=AppColors.SURFACE,
+                    dense=True,
+                    on_select=lambda event: self._on_resolution(event.control.value or ""),
+                )
+            )
+
+        return ft.Container(
+            padding=ft.Padding(
+                left=Space.SM,
+                top=Space.SM,
+                right=Space.SM,
+                bottom=Space.SM,
+            ),
+            bgcolor=AppColors.ERROR_SOFT,
+            border_radius=Radius.SM,
+            content=ft.Column(controls=rows, spacing=Space.XS, tight=True),
+        )
 
     def _build_label(self) -> ft.Control:
         """Подпись поля.

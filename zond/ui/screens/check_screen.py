@@ -136,7 +136,7 @@ class CheckScreen(AppScreen):
         cards.append(
             SectionCard(
                 *[
-                    InfoRow(group, f"{len(template.fields_in_group(group))} пол.")
+                    self._group_row(group, len(template.fields_in_group(group)))
                     for group in template.groups
                 ],
                 title="Группы полей",
@@ -181,9 +181,41 @@ class CheckScreen(AppScreen):
             on_click=self._share,
         )
 
+    @staticmethod
+    def _group_row(group: str, count: int) -> ft.Control:
+        """Строка группы: название и количество полей.
+
+        У обычной строки «подпись — значение» подпись ограничена по ширине, а
+        названия групп длинные: слово не помещается и рвётся посередине.
+        Здесь наоборот — название занимает всё место, а количество прижато
+        вправо.
+        """
+
+        return ft.Row(
+            spacing=Space.SM,
+            vertical_alignment=ft.CrossAxisAlignment.START,
+            controls=[
+                ft.Text(
+                    group,
+                    size=FontSize.BODY,
+                    color=AppColors.TEXT,
+                    expand=True,
+                    max_lines=2,
+                    overflow=ft.TextOverflow.ELLIPSIS,
+                ),
+                ft.Text(
+                    f"{count} пол.",
+                    size=FontSize.BODY,
+                    color=AppColors.TEXT_SECONDARY,
+                    width=62,
+                    text_align=ft.TextAlign.RIGHT,
+                ),
+            ],
+        )
+
     def _start_button(self) -> PrimaryButton:
         self.start_button = PrimaryButton(
-            "Начать проверку",
+            "Начать",
             icon=AppIcons.PLAY,
             on_click=self._start,
             expand=True,
@@ -220,7 +252,7 @@ class CheckScreen(AppScreen):
 
         subtitle = (
             "Значения прошлой проверки подставятся в форму — править нужно "
-            "только изменившееся. Прежние замечания разбираются отдельным шагом."
+            "только изменившееся. Прежние замечания видны прямо в форме."
         )
 
         return SectionCard(
@@ -277,8 +309,8 @@ class CheckScreen(AppScreen):
 
         if self.start_button is not None:
             self.start_button.content = ft.Text(
-                "Начать проверку" if selected == REPEAT_NONE else "Начать с прошлой",
-                size=FontSize.SUBTITLE,
+                "Начать" if selected == REPEAT_NONE else "С прошлой",
+                size=FontSize.BUTTON,
                 weight=ft.FontWeight.W_600,
             )
 

@@ -23,7 +23,7 @@ class ScreenBody(ft.Container):
         self,
         *controls: ft.Control,
         spacing: int = Space.MD,
-        horizontal_padding: int = Space.LG,
+        horizontal_padding: int = Space.MD,
         top: int = 0,
         bottom: int = Space.MD,
     ) -> None:
@@ -48,13 +48,13 @@ class ScreenBody(ft.Container):
 class ActionBar(ft.Container):
     """Нижняя панель с кнопками, закреплённая под областью контента."""
 
-    def __init__(self, *controls: ft.Control, spacing: int = Space.MD) -> None:
+    def __init__(self, *controls: ft.Control, spacing: int = Space.SM) -> None:
         super().__init__(
             padding=ft.Padding(
-                left=Space.LG,
-                right=Space.LG,
-                top=Space.MD,
-                bottom=Space.LG,
+                left=Space.MD,
+                right=Space.MD,
+                top=Space.SM,
+                bottom=Space.MD,
             ),
             content=ft.Row(controls=list(controls), spacing=spacing),
         )

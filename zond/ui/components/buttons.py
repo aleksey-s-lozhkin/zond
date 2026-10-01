@@ -33,7 +33,7 @@ class PrimaryButton(ft.Button):
         tooltip: str | None = None,
     ) -> None:
         super().__init__(
-            content=ft.Text(text, size=FontSize.SUBTITLE, weight=ft.FontWeight.W_600),
+            content=ft.Text(text, size=FontSize.BUTTON, weight=ft.FontWeight.W_600),
             icon=icon,
             expand=expand,
             width=width,
@@ -76,7 +76,7 @@ class SecondaryButton(ft.OutlinedButton):
         tooltip: str | None = None,
     ) -> None:
         super().__init__(
-            content=ft.Text(text, size=FontSize.SUBTITLE, weight=ft.FontWeight.W_500),
+            content=ft.Text(text, size=FontSize.BUTTON, weight=ft.FontWeight.W_500),
             icon=icon,
             expand=expand,
             width=width,

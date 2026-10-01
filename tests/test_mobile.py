@@ -505,6 +505,8 @@ def test_desktop_opens_file_with_url_launcher(app: ZondApp, launcher, tmp_path: 
     target = tmp_path / "protocol.pdf"
     target.write_bytes(b"%PDF-1.4")
 
+    launcher.can_launch = True
+
     asyncio.run(app.open_path(target))
 
     assert launcher.urls
