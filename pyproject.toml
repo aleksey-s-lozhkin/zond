@@ -55,6 +55,16 @@ company = "pyconstrictor.ru"
 copyright = "© 2026 pyconstrictor.ru"
 build_number = 4
 
+# Дополнение pubspec сборочного проекта Flutter.
+#
+# jni_flutter 1.0.4 собран против jni 1.1.0, хотя в его pubspec указано
+# ^1.0.0: сгенерированные привязки падают на проверке версии —
+# «The generated bindings expect package:jni ^1.1.0, but 1.0.x was imported».
+# Flet фиксирует jni 1.0.0, поэтому закрепляем последний совместимый выпуск
+# jni_flutter. Убрать, когда Flet обновит свои зависимости.
+[tool.flet.flutter.pubspec.dependency_overrides]
+jni_flutter = "1.0.3"
+
 # Каталоги и файлы, не нужные внутри приложения. Виртуальное окружение
 # исключать обязательно: иначе в пакет попадёт сама среда разработки.
 [tool.flet.app]
