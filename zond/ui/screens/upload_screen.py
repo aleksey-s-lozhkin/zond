@@ -16,7 +16,7 @@ from zond.ui.design import ControlSize, FontSize, Space
 from zond.ui.icons import AppIcons
 from zond.ui.screens.base_screen import AppScreen
 
-VERSION = "1.0.3"
+VERSION = "1.0.4"
 
 #: Пояснение к выбору шаблона: сразу видно, что источник не один.
 TEMPLATE_HINT = "Свой CSV-файл или готовый пример из приложения"
